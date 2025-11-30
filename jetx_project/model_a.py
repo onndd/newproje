@@ -61,16 +61,18 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     X_t, X_val = X_train.iloc[:split_idx], X_train.iloc[split_idx:]
     
     # 1. Model P1.5 (Classifier)
-    print("\n--- Training Model A (P1.5) on GPU ---")
+    print("\n--- Training Model A (P1.5) on GPU (Aggressive) ---")
     y_p15_t, y_p15_val = y_p15_train[:split_idx], y_p15_train[split_idx:]
     
     model_p15 = CatBoostClassifier(
-        iterations=2000, 
-        learning_rate=0.02, 
-        depth=8, 
-        early_stopping_rounds=100,
+        iterations=10000, 
+        learning_rate=0.005, 
+        depth=10, 
+        l2_leaf_reg=3,
+        border_count=128,
+        early_stopping_rounds=500,
         eval_metric='AUC',
-        verbose=100,
+        verbose=500,
         task_type="GPU",
         devices='0'
     )
@@ -82,16 +84,18 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     print(f"Validation Accuracy (P1.5): {acc_p15:.4f}")
 
     # 2. Model P3 (Classifier)
-    print("\n--- Training Model A (P3.0) on GPU ---")
+    print("\n--- Training Model A (P3.0) on GPU (Aggressive) ---")
     y_p3_t, y_p3_val = y_p3_train[:split_idx], y_p3_train[split_idx:]
     
     model_p3 = CatBoostClassifier(
-        iterations=2000, 
-        learning_rate=0.02, 
-        depth=8, 
-        early_stopping_rounds=100,
+        iterations=10000, 
+        learning_rate=0.005, 
+        depth=10,
+        l2_leaf_reg=3,
+        border_count=128,
+        early_stopping_rounds=500,
         eval_metric='AUC',
-        verbose=100,
+        verbose=500,
         task_type="GPU",
         devices='0'
     )
@@ -103,16 +107,18 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     print(f"Validation Accuracy (P3.0): {acc_p3:.4f}")
 
     # 3. Model X (Regressor)
-    print("\n--- Training Model A (Regression) on GPU ---")
+    print("\n--- Training Model A (Regression) on GPU (Aggressive) ---")
     y_x_t, y_x_val = y_x_train[:split_idx], y_x_train[split_idx:]
     
     model_x = CatBoostRegressor(
-        iterations=2000, 
-        learning_rate=0.02, 
-        depth=8, 
-        early_stopping_rounds=100,
+        iterations=10000, 
+        learning_rate=0.005, 
+        depth=10,
+        l2_leaf_reg=3,
+        border_count=128,
+        early_stopping_rounds=500,
         loss_function='RMSE',
-        verbose=100,
+        verbose=500,
         task_type="GPU",
         devices='0'
     )
