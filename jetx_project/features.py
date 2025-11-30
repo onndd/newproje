@@ -112,57 +112,70 @@ def extract_features(history_full, current_index):
         history_full: Full array of 'value' history
         current_index: The index for which we want to predict the NEXT value (target is at current_index + 1)
                        So we look at history_full[:current_index+1] effectively? 
-                       No, prompt says: "Pencereler: 50: X[i-49..i]" for index i.
-                       So if we are at index i, we use data up to i (inclusive).
-    
-    Returns:
-        A flat dictionary or array of features.
-    """
+                      # 2. Extract features for each window size
     all_features = {}
-    
-    # Ensure we have enough history for the largest window?
-    # Or just pad/handle short history? Prompt implies we start from i=500.
-    
-    for w_size in WINDOWS:
-        start_idx = current_index - w_size + 1
-        if start_idx < 0:
-            # Not enough data for this window
-            # We could return zeros or handle it. 
-            # For now, let's assume the caller handles the range start.
-            window_data = history_full[0 : current_index + 1] # Take what we have?
-            # Or strictly return NaN? 
-            # Let's take the slice. If strict:
-            # window_data = history_full[start_idx : current_index + 1]
-            pass 
-        
-        # Strict slicing as per prompt X[i-49..i]
-        # Python slice: [start : end] includes start, excludes end.
-        # So X[i-49..i] (inclusive) -> slice [i-49 : i+1]
-        
-        slice_start = current_index - w_size + 1
-        slice_end = current_index + 1
-        
-        if slice_start < 0:
-             # Fallback for early indices if needed, though training starts later
-             window_data = np.array([]) 
-        else:
-            window_data = history_full[slice_start : slice_end]
+    for w_size in WINDOWS: # Assuming window_sizes is WINDOWS
+        if current_index < w_size:
+            continue
             
-        w_feats = extract_window_features(window_data)
+        window = history_full[current_index-w_size:current_index]
         
-        # Prefix keys with window size
+        # --- Categorical / Pattern Features ONLY ---
+        # We removed statistical aggregations (mean, std, etc.) as requested.
+        # Focusing on structure and raw data.
+        
+        # Category Counts (Pattern Structure)
+        set1_count = sum(1 for x in window if 1.00 <= x <= 1.49)
+        set2_count = sum(1 for x in window if 1.50 <= x <= 1.99)
+        set3_count = sum(1 for x in window if x >= 2.00)
+        
+        w_feats = {
+            'set1_ratio': set1_count / w_size,
+            'set2_ratio': set2_count / w_size,
+            'set3_ratio': set3_count / w_size,
+            
+            # Streaks (Recent behavior)
+            'current_streak_under_2': 0, # Placeholder, logic below
+            'current_streak_over_2': 0
+        }
+        
+        # Calculate streaks for the window
+        streak_under = 0
+        streak_over = 0
+        for val in reversed(window):
+            if val < 2.0:
+                streak_under += 1
+                streak_over = 0
+            else:
+                streak_over += 1
+                streak_under = 0
+            # We only care about the immediate streak at the end of the window
+            break 
+            
+        # Re-calculate proper streaks from the end of window backwards
+        curr_streak_u = 0
+        curr_streak_o = 0
+        for val in reversed(window):
+            if val < 2.0:
+                if curr_streak_o > 0: break
+                curr_streak_u += 1
+            else:
+                if curr_streak_u > 0: break
+                curr_streak_o += 1
+                
+        w_feats['current_streak_under_2'] = curr_streak_u
+        w_feats['current_streak_over_2'] = curr_streak_o
+
         for k, v in w_feats.items():
             all_features[f'w{w_size}_{k}'] = v
             
-    # Add the actual values of the last 10, 20, 50 games directly
-    # This helps the tree model see the exact sequence, not just stats
-    # We'll add up to the last 50 games, padding with NaN if not enough history
-    for lag in range(1, 51): # Last 50 games raw values
+    # 3. Raw Numeric History (The Core Feature)
+    # Add the actual values of the last 50 games directly
+    for lag in range(1, 51): 
         if current_index - lag + 1 >= 0:
             all_features[f'raw_lag_{lag}'] = history_full[current_index - lag + 1]
         else:
-            all_features[f'raw_lag_{lag}'] = np.nan # Or 0, depending on desired padding
+            all_features[f'raw_lag_{lag}'] = 0.0
             
     return all_features
-
 ```
