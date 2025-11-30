@@ -154,4 +154,15 @@ def extract_features(history_full, current_index):
         for k, v in w_feats.items():
             all_features[f'w{w_size}_{k}'] = v
             
+    # Add the actual values of the last 10, 20, 50 games directly
+    # This helps the tree model see the exact sequence, not just stats
+    # We'll add up to the last 50 games, padding with NaN if not enough history
+    for lag in range(1, 51): # Last 50 games raw values
+        if current_index - lag + 1 >= 0:
+            all_features[f'raw_lag_{lag}'] = history_full[current_index - lag + 1]
+        else:
+            all_features[f'raw_lag_{lag}'] = np.nan # Or 0, depending on desired padding
+            
     return all_features
+
+```

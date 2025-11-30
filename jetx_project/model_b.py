@@ -8,18 +8,25 @@ from .categorization import get_set1_id, get_set2_id, get_set3_id
 def create_pattern_vector(values, end_index, length=300):
     """
     Creates a single pattern vector for the window ending at end_index.
-    Vector = [Set1_ids... Set2_ids... Set3_ids...]
+    Vector = [Normalized_Values... Set1_ids... Set2_ids... Set3_ids...]
     """
     if end_index < length - 1:
         return None
         
     window = values[end_index - length + 1 : end_index + 1]
     
+    # 1. Numeric Values (Normalized to be roughly 0-1 range for k-NN)
+    # Assuming max multiplier rarely exceeds 100, we divide by 100.
+    # We clip at 100 to avoid outliers distorting distance.
+    norm_window = np.clip(window, 0, 100) / 100.0
+    
+    # 2. Categorical IDs
     s1 = [get_set1_id(v) for v in window]
     s2 = [get_set2_id(v) for v in window]
     s3 = [get_set3_id(v) for v in window]
     
-    return np.concatenate([s1, s2, s3])
+    # Concatenate all
+    return np.concatenate([norm_window, s1, s2, s3])
 
 def build_memory(values, start_index=300):
     """
