@@ -84,8 +84,8 @@ def run_simulation(predictions_df, model_name="Model A"):
         else:
             kasa2.update(0)
             
-        # --- Kasa 3: 3x focus, %70 confidence ---
-        if p_3 >= 0.70:
+        # --- Kasa 3: 3x focus, %60 confidence ---
+        if p_3 >= 0.60:
             bet = 10
             # Target exit: max(1.5, 0.8 * x_pred)
             target = max(1.5, 0.8 * pred_x)
@@ -102,7 +102,7 @@ def run_simulation(predictions_df, model_name="Model A"):
     print(f"--- Simulation Results for {model_name} ---")
     print(f"Kasa 1 (1.5x @ 70%): {kasa1.get_stats()}")
     print(f"Kasa 2 (1.5x @ 80%): {kasa2.get_stats()}")
-    print(f"Kasa 3 (Dynamic @ 70%): {kasa3.get_stats()}")
+    print(f"Kasa 3 (Dynamic @ 60%): {kasa3.get_stats()}")
     print("-" * 30)
     
     return {
