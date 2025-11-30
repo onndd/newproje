@@ -39,7 +39,19 @@ else:
 
 # Session State for History
 if 'history' not in st.session_state:
-    st.session_state.history = [] 
+    # Try to load from DB first
+    if os.path.exists('jetx.db'):
+        try:
+            from jetx_project.data_loader import load_data, get_values_array
+            df = load_data('jetx.db')
+            vals = get_values_array(df)
+            st.session_state.history = vals.tolist()
+            st.success(f"Loaded {len(vals)} records from jetx.db")
+        except Exception as e:
+            st.error(f"Could not load from DB: {e}")
+            st.session_state.history = []
+    else:
+        st.session_state.history = [] 
 
 # Input
 new_val = st.number_input("Enter Last Result (X):", min_value=1.00, step=0.01, format="%.2f")

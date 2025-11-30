@@ -28,8 +28,8 @@ env/
 ENV/
 
 # Project Specific
-jetx.db
 *.db
+!jetx.db
 modelA_*
 modelB_memory
 trained_models.zip
