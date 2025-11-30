@@ -17,6 +17,10 @@ def load_data(db_path=DB_PATH):
     df = pd.read_sql_query(query, conn)
     conn.close()
     
+    # Ensure 'value' is numeric (float), handle potential string issues
+    df['value'] = pd.to_numeric(df['value'], errors='coerce')
+    df = df.dropna(subset=['value'])
+    
     return df
 
 def split_train_test(df, train_ratio=0.8):
