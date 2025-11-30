@@ -26,7 +26,7 @@ def create_pattern_vector(values, end_index, length=300):
     s3 = [get_set3_id(v) for v in window]
     
     # Concatenate all
-    return np.concatenate([norm_window, s1, s2, s3])
+    return np.concatenate([norm_window, np.array(s1), np.array(s2), np.array(s3)])
 
 def build_memory(values, start_index=300):
     """
