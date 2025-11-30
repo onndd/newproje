@@ -110,19 +110,20 @@ def extract_features(history_full, current_index):
     
     Args:
         history_full: Full array of 'value' history
-        current_index: The index for which we want to predict the NEXT value (target is at current_index + 1)
-                       So we look at history_full[:current_index+1] effectively? 
-                      # 2. Extract features for each window size
+        current_index: The index for which we want to predict the NEXT value.
+    
+    Returns:
+        A flat dictionary of features.
+    """
     all_features = {}
-    for w_size in WINDOWS: # Assuming window_sizes is WINDOWS
+    
+    for w_size in WINDOWS:
         if current_index < w_size:
             continue
             
         window = history_full[current_index-w_size:current_index]
         
         # --- Categorical / Pattern Features ONLY ---
-        # We removed statistical aggregations (mean, std, etc.) as requested.
-        # Focusing on structure and raw data.
         
         # Category Counts (Pattern Structure)
         set1_count = sum(1 for x in window if 1.00 <= x <= 1.49)
@@ -135,24 +136,11 @@ def extract_features(history_full, current_index):
             'set3_ratio': set3_count / w_size,
             
             # Streaks (Recent behavior)
-            'current_streak_under_2': 0, # Placeholder, logic below
+            'current_streak_under_2': 0, 
             'current_streak_over_2': 0
         }
         
-        # Calculate streaks for the window
-        streak_under = 0
-        streak_over = 0
-        for val in reversed(window):
-            if val < 2.0:
-                streak_under += 1
-                streak_over = 0
-            else:
-                streak_over += 1
-                streak_under = 0
-            # We only care about the immediate streak at the end of the window
-            break 
-            
-        # Re-calculate proper streaks from the end of window backwards
+        # Calculate streaks from the end of window backwards
         curr_streak_u = 0
         curr_streak_o = 0
         for val in reversed(window):
@@ -178,4 +166,3 @@ def extract_features(history_full, current_index):
             all_features[f'raw_lag_{lag}'] = 0.0
             
     return all_features
-```
