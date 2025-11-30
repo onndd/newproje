@@ -5,7 +5,7 @@ import os
 from sklearn.neighbors import NearestNeighbors
 from .categorization import get_set1_id, get_set2_id, get_set3_id
 
-def create_pattern_vector(values, end_index, length=200):
+def create_pattern_vector(values, end_index, length=300):
     """
     Creates a single pattern vector for the window ending at end_index.
     Vector = [Set1_ids... Set2_ids... Set3_ids...]
@@ -21,7 +21,7 @@ def create_pattern_vector(values, end_index, length=200):
     
     return np.concatenate([s1, s2, s3])
 
-def build_memory(values, start_index=200):
+def build_memory(values, start_index=300):
     """
     Builds the memory bank for Model B.
     
@@ -33,7 +33,7 @@ def build_memory(values, start_index=200):
     targets = [] # Stores dict of {next_val, p15, p3}
     
     for i in range(start_index, len(values) - 1):
-        pat = create_pattern_vector(values, i, length=200)
+        pat = create_pattern_vector(values, i, length=300)
         if pat is not None:
             patterns.append(pat)
             
@@ -50,7 +50,8 @@ def train_model_b(patterns):
     """
     Trains the NearestNeighbors model.
     """
-    nbrs = NearestNeighbors(n_neighbors=50, algorithm='auto', metric='manhattan')
+    # Increased neighbors to 100 for broader consensus
+    nbrs = NearestNeighbors(n_neighbors=100, algorithm='auto', metric='manhattan')
     nbrs.fit(patterns)
     return nbrs
 
