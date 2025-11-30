@@ -170,8 +170,8 @@ def extract_features(history_full, current_index):
             all_features[f'w{w_size}_{k}'] = v
             
     # 3. Raw Numeric History (The Core Feature)
-    # Add the actual values of the last 50 games directly
-    for lag in range(1, 51): 
+    # Add the actual values of the last 200 games directly
+    for lag in range(1, 201): 
         if current_index - lag + 1 >= 0:
             all_features[f'raw_lag_{lag}'] = history_full[current_index - lag + 1]
         else:
