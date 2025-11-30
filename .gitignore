@@ -1,0 +1,41 @@
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual Env
+venv/
+env/
+ENV/
+
+# Project Specific
+jetx.db
+*.db
+modelA_*
+modelB_memory
+trained_models.zip
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# OS
+.DS_Store
