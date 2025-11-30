@@ -60,8 +60,8 @@ def run_simulation(predictions_df, model_name="Model A"):
         p_3 = row['p_3']
         pred_x = row['pred_x']
         
-        # --- Kasa 1: 1.5x, %80 confidence ---
-        if p_1_5 >= 0.80:
+        # --- Kasa 1: 1.5x, %70 confidence ---
+        if p_1_5 >= 0.70:
             bet = 10
             target = 1.5
             if true_val >= target:
@@ -72,12 +72,12 @@ def run_simulation(predictions_df, model_name="Model A"):
         else:
             kasa1.update(0) # No bet
             
-        # --- Kasa 2: 1.5x, %90 confidence ---
-        if p_1_5 >= 0.90:
+        # --- Kasa 2: 1.5x, %80 confidence ---
+        if p_1_5 >= 0.80:
             bet = 20
             target = 1.5
             if true_val >= target:
-                profit = bet * (target - 1) # 20 * 0.5 = 10
+                profit = bet * (target - 1)
             else:
                 profit = -bet
             kasa2.update(profit)
@@ -100,8 +100,8 @@ def run_simulation(predictions_df, model_name="Model A"):
             
     # Report
     print(f"--- Simulation Results for {model_name} ---")
-    print(f"Kasa 1 (1.5x @ 80%): {kasa1.get_stats()}")
-    print(f"Kasa 2 (1.5x @ 90%): {kasa2.get_stats()}")
+    print(f"Kasa 1 (1.5x @ 70%): {kasa1.get_stats()}")
+    print(f"Kasa 2 (1.5x @ 80%): {kasa2.get_stats()}")
     print(f"Kasa 3 (Dynamic @ 70%): {kasa3.get_stats()}")
     print("-" * 30)
     
