@@ -128,4 +128,67 @@ def extract_features(history_full, current_index):
         all_features['last_big_x_val'] = 0.0
         all_features['is_aftershock'] = 0
             
+    # C. Long Streak Analysis (Context)
+    # Find the last "Long Streak" (e.g. >= 8 games of same color)
+    # We look back to find a sequence of >= 8 reds (<1.5) or greens (>=1.5)
+    
+    last_streak_end_idx = -1
+    last_streak_type = 0 # 0: None, 1: Red (<1.5), 2: Green (>=1.5)
+    last_streak_len = 0
+    
+    # Scan backwards from current_index
+    # This can be slow if we scan too far, limit to 200
+    scan_limit = 200
+    
+    # Helper to check streak at specific index
+    # We need to find where a streak *ended*. 
+    # A streak ends at i if i is different from i-1, or if we are just scanning backwards.
+    # Actually, we just need to find the *most recent* completed or ongoing streak of length >= 8.
+    
+    # Let's iterate backwards and count streaks.
+    temp_streak_len = 0
+    temp_streak_type = 0 # 1: Red, 2: Green
+    
+    for i in range(current_index - 1, max(-1, current_index - scan_limit), -1):
+        val = history_full[i]
+        val_type = 1 if val < 1.5 else 2
+        
+        if temp_streak_len == 0:
+            temp_streak_type = val_type
+            temp_streak_len = 1
+        elif val_type == temp_streak_type:
+            temp_streak_len += 1
+        else:
+            # Streak broke. Was the previous one long enough?
+            if temp_streak_len >= 8:
+                last_streak_end_idx = i + temp_streak_len # The index where it ended (actually i+1 was the break)
+                # Wait, i is the index of the *new* color. So the streak was from i+1 to i+temp_streak_len.
+                # The "end" index (most recent part) is i + 1 + temp_streak_len - 1 = i + temp_streak_len?
+                # Let's simplify: The streak was active at indices [i+1, i+temp_streak_len].
+                # The most recent game of that streak was at i+1.
+                last_streak_end_idx = i + 1 
+                last_streak_type = temp_streak_type
+                last_streak_len = temp_streak_len
+                break
+            
+            # Reset for new streak
+            temp_streak_type = val_type
+            temp_streak_len = 1
+            
+    # Check if the loop finished with a long streak (at the very beginning of scan)
+    if last_streak_end_idx == -1 and temp_streak_len >= 8:
+         last_streak_end_idx = max(-1, current_index - scan_limit) # Approximate
+         last_streak_type = temp_streak_type
+         last_streak_len = temp_streak_len
+         
+    if last_streak_end_idx != -1:
+        games_since_streak = current_index - last_streak_end_idx
+        all_features['games_since_long_streak'] = games_since_streak
+        all_features['last_long_streak_type'] = last_streak_type
+        all_features['last_long_streak_len'] = last_streak_len
+    else:
+        all_features['games_since_long_streak'] = 200
+        all_features['last_long_streak_type'] = 0
+        all_features['last_long_streak_len'] = 0
+
     return all_features

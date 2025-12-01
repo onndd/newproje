@@ -37,6 +37,27 @@ def create_pattern_vector(values, end_index, length=300):
     # Check if there is a big X in the window
     has_big_x = 1 if np.max(window) >= 10.0 else 0
     
+    # Streak Analysis for Pattern
+    # Simplified check for the window: Is there a long streak INSIDE this window?
+    # We can check the max streak length in this window.
+    max_red_streak = 0
+    max_green_streak = 0
+    curr_red = 0
+    curr_green = 0
+    
+    for v in window:
+        if v < 1.5:
+            curr_red += 1
+            curr_green = 0
+            max_red_streak = max(max_red_streak, curr_red)
+        else:
+            curr_green += 1
+            curr_red = 0
+            max_green_streak = max(max_green_streak, curr_green)
+            
+    has_long_red = 1 if max_red_streak >= 8 else 0
+    has_long_green = 1 if max_green_streak >= 8 else 0
+
     # Concatenate all
     # We add scalars at the end
     return np.concatenate([
@@ -44,7 +65,9 @@ def create_pattern_vector(values, end_index, length=300):
         np.array(s1), np.array(s2), np.array(s3),
         np.array(s4), np.array(s5), np.array(s6),
         np.array([rtp_balance / 100.0]), # Normalize RTP roughly
-        np.array([has_big_x])
+        np.array([has_big_x]),
+        np.array([has_long_red]),
+        np.array([has_long_green])
     ])
 
 def build_memory(values, start_index=300):
