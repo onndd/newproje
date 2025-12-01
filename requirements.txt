@@ -1,5 +1,12 @@
 catboost
+hmmlearn
+tensorflow
+lightgbm
+scikit-learn
 pandas
+numpy
+matplotlib
+seaborndas
 numpy
 scikit-learn
 joblib
