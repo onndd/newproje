@@ -60,10 +60,11 @@ def create_pattern_vector(values, end_index, length=300):
 
     # Concatenate all
     # We add scalars at the end
+    # Normalize Category IDs (approx max 5) to balance weight with numeric values (0-1)
     return np.concatenate([
         norm_window, 
-        np.array(s1), np.array(s2), np.array(s3),
-        np.array(s4), np.array(s5), np.array(s6),
+        np.array(s1) / 5.0, np.array(s2) / 5.0, np.array(s3) / 5.0,
+        np.array(s4) / 5.0, np.array(s5) / 5.0, np.array(s6) / 5.0,
         np.array([rtp_balance / 100.0]), # Normalize RTP roughly
         np.array([has_big_x]),
         np.array([has_long_red]),
