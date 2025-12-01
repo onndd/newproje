@@ -42,7 +42,4 @@ def save_mlp_models(model_p15, model_p3, feature_cols, output_dir='.'):
         os.makedirs(output_dir)
     joblib.dump(model_p15, os.path.join(output_dir, 'modelE_p15.pkl'))
     joblib.dump(model_p3, os.path.join(output_dir, 'modelE_p3.pkl'))
-    joblib.dump(feature_cols, os.path.join(output_dir, 'modelE_features.pkl'))
     print(f"MLP models saved to {output_dir}")
-
-```
