@@ -25,8 +25,23 @@ def create_pattern_vector(values, end_index, length=300):
     s2 = [get_set2_id(v) for v in window]
     s3 = [get_set3_id(v) for v in window]
     
+    # 3. Psychological Features (Scalar)
+    # We need to calculate them on the fly for the pattern
+    # RTP Balance (Approximate for the window)
+    rtp_balance = np.sum(window) - (len(window) * 0.97)
+    
+    # Shockwave (Big X)
+    # Check if there is a big X in the window
+    has_big_x = 1 if np.max(window) >= 10.0 else 0
+    
     # Concatenate all
-    return np.concatenate([norm_window, np.array(s1), np.array(s2), np.array(s3)])
+    # We add scalars at the end
+    return np.concatenate([
+        norm_window, 
+        np.array(s1), np.array(s2), np.array(s3),
+        np.array([rtp_balance / 100.0]), # Normalize RTP roughly
+        np.array([has_big_x])
+    ])
 
 def build_memory(values, start_index=300):
     """
