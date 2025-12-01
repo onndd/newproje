@@ -30,18 +30,25 @@ def extract_features(history_full, current_index):
         # We use the new Sets 4, 5, 6 for finer granularity
         
         # Set 1 (Fine)
-        set1_count = sum(1 for x in window if 1.00 <= x <= 1.49) # Approx check, better to use get_set1_id logic if needed, but ratios are fine.
-        # Actually, let's use the ratios of "Low", "Med", "High" based on Set 3 (Coarse) for simplicity in feature vector,
-        # BUT for Model B (Pattern), we use the exact IDs.
-        # For Model A (Tabular), raw lags are more important.
-        # Let's keep the simple ratios but add Set 4 (Ultra-Low) ratio which is critical.
+        set1_count = sum(1 for x in window if 1.00 <= x <= 1.49)
         
-        # Set 4 Focus: 1.00 - 1.19 (Danger Zone)
-        danger_count = sum(1 for x in window if 1.00 <= x <= 1.19)
+        # Set 4 (Ultra-Fine Low Band) - Critical for "Harvest Mode"
+        # Range: 1.00 - 1.19 (Danger Zone)
+        set4_danger_count = sum(1 for x in window if 1.00 <= x <= 1.19)
+        
+        # Set 5 (Medium Detail)
+        # Range: 1.50 - 1.99 (Safe Zone?)
+        set5_safe_count = sum(1 for x in window if 1.50 <= x <= 1.99)
+        
+        # Set 6 (Coarse) - High Multipliers
+        # Range: >= 2.00
+        set6_high_count = sum(1 for x in window if x >= 2.00)
         
         w_feats = {
-            'set1_ratio': set1_count / w_size, # Low
-            'danger_ratio': danger_count / w_size, # Ultra-Low (New)
+            'set1_ratio': set1_count / w_size,
+            'set4_danger_ratio': set4_danger_count / w_size,
+            'set5_safe_ratio': set5_safe_count / w_size,
+            'set6_high_ratio': set6_high_count / w_size,
             
             # Streaks (Recent behavior)
             'current_streak_under_2': 0, 

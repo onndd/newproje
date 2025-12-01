@@ -3,7 +3,7 @@ import numpy as np
 import joblib
 import os
 from sklearn.neighbors import NearestNeighbors
-from .categorization import get_set1_id, get_set2_id, get_set3_id
+from .categorization import get_set1_id, get_set2_id, get_set3_id, get_set4_id, get_set5_id, get_set6_id
 
 def create_pattern_vector(values, end_index, length=300):
     """
@@ -24,6 +24,9 @@ def create_pattern_vector(values, end_index, length=300):
     s1 = [get_set1_id(v) for v in window]
     s2 = [get_set2_id(v) for v in window]
     s3 = [get_set3_id(v) for v in window]
+    s4 = [get_set4_id(v) for v in window]
+    s5 = [get_set5_id(v) for v in window]
+    s6 = [get_set6_id(v) for v in window]
     
     # 3. Psychological Features (Scalar)
     # We need to calculate them on the fly for the pattern
@@ -39,6 +42,7 @@ def create_pattern_vector(values, end_index, length=300):
     return np.concatenate([
         norm_window, 
         np.array(s1), np.array(s2), np.array(s3),
+        np.array(s4), np.array(s5), np.array(s6),
         np.array([rtp_balance / 100.0]), # Normalize RTP roughly
         np.array([has_big_x])
     ])
