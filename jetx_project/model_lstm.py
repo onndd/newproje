@@ -32,9 +32,13 @@ def build_lstm_model(seq_length):
     Builds a shared LSTM model with multiple outputs? 
     Or separate models? Let's build separate for simplicity/flexibility.
     """
+    from tensorflow.keras.layers import Input
+    
     model = Sequential()
+    # Use Input layer to avoid warning
+    model.add(Input(shape=(seq_length, 1)))
     # Increased complexity for longer sequence
-    model.add(LSTM(256, return_sequences=True, input_shape=(seq_length, 1)))
+    model.add(LSTM(256, return_sequences=True))
     model.add(BatchNormalization())
     model.add(Dropout(0.3))
     model.add(LSTM(128, return_sequences=True)) # Extra layer
@@ -52,11 +56,23 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     """
     Trains LSTM models for P1.5 and P3.
     """
-    # Scale data
+    # 1. Prepare Targets (y) from RAW values
+    # We predict values[i] using values[i-seq_length:i]
+    # So targets start from index seq_length
+    targets_raw = values[seq_length:]
+    y_p15 = (targets_raw >= 1.5).astype(int)
+    y_p3 = (targets_raw >= 3.0).astype(int)
+    
+    # 2. Prepare Features (X) from SCALED values
     scaler = MinMaxScaler(feature_range=(0, 1))
     values_scaled = scaler.fit_transform(values.reshape(-1, 1))
     
-    X, y_p15, y_p3, _ = create_sequences(values_scaled, seq_length)
+    X = []
+    for i in range(seq_length, len(values)):
+        seq = values_scaled[i-seq_length:i]
+        X.append(seq)
+        
+    X = np.array(X)
     
     # Split
     split_idx = int(len(X) * 0.85)
