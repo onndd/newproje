@@ -54,7 +54,33 @@ def run_simulation(predictions_df, model_name="Model A"):
     kasa2 = Bankroll()
     kasa3 = Bankroll()
     
-    for _, row in predictions_df.iterrows():
+    # Standardize column names
+    df = predictions_df.copy()
+    
+    # Map 'value' to 'true_val' if needed
+    if 'true_val' not in df.columns and 'value' in df.columns:
+        df['true_val'] = df['value']
+        
+    # Map 'prob_1.5' to 'p_1_5'
+    if 'p_1_5' not in df.columns and 'prob_1.5' in df.columns:
+        df['p_1_5'] = df['prob_1.5']
+        
+    # Map 'prob_3.0' to 'p_3'
+    if 'p_3' not in df.columns and 'prob_3.0' in df.columns:
+        df['p_3'] = df['prob_3.0']
+        
+    # Map 'pred_value' to 'pred_x'
+    if 'pred_x' not in df.columns and 'pred_value' in df.columns:
+        df['pred_x'] = df['pred_value']
+        
+    # Check for missing columns
+    required_cols = ['true_val', 'p_1_5', 'p_3', 'pred_x']
+    missing = [c for c in required_cols if c not in df.columns]
+    if missing:
+        print(f"Error: Missing columns for simulation: {missing}")
+        return None
+    
+    for _, row in df.iterrows():
         true_val = row['true_val']
         p_1_5 = row['p_1_5']
         p_3 = row['p_3']
