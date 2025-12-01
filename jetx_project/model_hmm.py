@@ -25,25 +25,20 @@ def train_hmm_model(values, n_components=3):
     
     return model, state_map
 
-def predict_hmm_state(model, state_map, recent_values):
+def predict_hmm_state(model, values, state_map):
     """
-    Predicts the current hidden state based on recent history.
-    Returns:
-        state_idx: 0 (Cold), 1 (Normal), 2 (Hot)
+    Predicts the state for a sequence of values.
+    Returns the mapped state for EACH value in the sequence.
     """
-    if len(recent_values) < 10:
-        return 1 # Default to Normal if not enough data
-        
-    X = recent_values.reshape(-1, 1)
-    hidden_states = model.predict(X)
+    # Log Transform (Critical!)
+    values_log = np.log1p(values).reshape(-1, 1)
     
-    # The current state is the last one in the sequence
-    current_internal_state = hidden_states[-1]
+    hidden_states = model.predict(values_log)
     
-    # Map to our semantic states (0=Cold, 2=Hot)
-    mapped_state = state_map[current_internal_state]
+    # Map all states
+    mapped_states = np.array([state_map[s] for s in hidden_states])
     
-    return mapped_state
+    return mapped_states
 
 def save_hmm_model(model, state_map, output_dir='.'):
     if not os.path.exists(output_dir):
