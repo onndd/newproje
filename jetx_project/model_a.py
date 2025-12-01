@@ -10,13 +10,14 @@ except ImportError:
 
 from .features import extract_features
 
-def prepare_model_a_data(values, start_index=500):
+def prepare_model_a_data(values, hmm_states, start_index=500):
     """
     Prepares X (features) and y (targets) for Model A.
     
     Args:
         values: Numpy array of all historical values.
-        start_index: Index to start generating samples from (to ensure enough history).
+        hmm_states: Array of HMM states corresponding to values.
+        start_index: Index to start generating samples from.
         
     Returns:
         X: DataFrame of features
@@ -30,12 +31,14 @@ def prepare_model_a_data(values, start_index=500):
     y_x_list = []
     
     # We go up to len(values) - 2 because we need target at i+1
-    # i goes from start_index to N-2
-    # target is values[i+1]
-    
     for i in range(start_index, len(values) - 1):
         # Extract features using history up to i
         feats = extract_features(values, i)
+        
+        # Add HMM State as a feature
+        # hmm_states[i] is the state at time i
+        feats['hmm_state'] = hmm_states[i]
+        
         X_list.append(feats)
         
         # Target: Next value
