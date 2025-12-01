@@ -8,7 +8,7 @@ from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.preprocessing import MinMaxScaler
 import joblib
 
-def create_sequences(values, seq_length=50):
+def create_sequences(values, seq_length=200):
     """
     Creates sequences for LSTM.
     """
@@ -33,7 +33,11 @@ def build_lstm_model(seq_length):
     Or separate models? Let's build separate for simplicity/flexibility.
     """
     model = Sequential()
-    model.add(LSTM(128, return_sequences=True, input_shape=(seq_length, 1)))
+    # Increased complexity for longer sequence
+    model.add(LSTM(256, return_sequences=True, input_shape=(seq_length, 1)))
+    model.add(BatchNormalization())
+    model.add(Dropout(0.3))
+    model.add(LSTM(128, return_sequences=True)) # Extra layer
     model.add(BatchNormalization())
     model.add(Dropout(0.3))
     model.add(LSTM(64, return_sequences=False))
@@ -44,7 +48,7 @@ def build_lstm_model(seq_length):
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
-def train_model_lstm(values, seq_length=50, epochs=20, batch_size=64):
+def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     """
     Trains LSTM models for P1.5 and P3.
     """

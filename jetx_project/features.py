@@ -27,16 +27,21 @@ def extract_features(history_full, current_index):
         window = history_full[current_index-w_size:current_index]
         
         # --- Categorical / Pattern Features ONLY ---
+        # We use the new Sets 4, 5, 6 for finer granularity
         
-        # Category Counts (Pattern Structure)
-        set1_count = sum(1 for x in window if 1.00 <= x <= 1.49)
-        set2_count = sum(1 for x in window if 1.50 <= x <= 1.99)
-        set3_count = sum(1 for x in window if x >= 2.00)
+        # Set 1 (Fine)
+        set1_count = sum(1 for x in window if 1.00 <= x <= 1.49) # Approx check, better to use get_set1_id logic if needed, but ratios are fine.
+        # Actually, let's use the ratios of "Low", "Med", "High" based on Set 3 (Coarse) for simplicity in feature vector,
+        # BUT for Model B (Pattern), we use the exact IDs.
+        # For Model A (Tabular), raw lags are more important.
+        # Let's keep the simple ratios but add Set 4 (Ultra-Low) ratio which is critical.
+        
+        # Set 4 Focus: 1.00 - 1.19 (Danger Zone)
+        danger_count = sum(1 for x in window if 1.00 <= x <= 1.19)
         
         w_feats = {
-            'set1_ratio': set1_count / w_size,
-            'set2_ratio': set2_count / w_size,
-            'set3_ratio': set3_count / w_size,
+            'set1_ratio': set1_count / w_size, # Low
+            'danger_ratio': danger_count / w_size, # Ultra-Low (New)
             
             # Streaks (Recent behavior)
             'current_streak_under_2': 0, 
@@ -56,7 +61,10 @@ def extract_features(history_full, current_index):
                 
         w_feats['current_streak_under_2'] = curr_streak_u
         w_feats['current_streak_over_2'] = curr_streak_o
-
+        
+        # Add Set 4, 5, 6 IDs of the *last* game specifically?
+        # No, raw lags cover that.
+        
         for k, v in w_feats.items():
             all_features[f'w{w_size}_{k}'] = v
             
