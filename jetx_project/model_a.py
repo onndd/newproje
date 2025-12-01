@@ -3,10 +3,7 @@ import numpy as np
 import pandas as pd
 
 import os
-try:
-    from catboost import CatBoostClassifier, CatBoostRegressor
-except ImportError:
-    print("CatBoost not installed. Please install it via 'pip install catboost'")
+from catboost import CatBoostClassifier, CatBoostRegressor
 
 from .features import extract_features
 

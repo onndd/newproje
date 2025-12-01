@@ -125,6 +125,7 @@ def load_memory(model_dir='.'):
     data = joblib.load(os.path.join(model_dir, 'modelB_memory'))
     return data['nbrs'], data['patterns'], data['targets']
 
+def predict_model_b(nbrs, memory_targets, current_pattern):
     """
     Predicts using k-NN.
     """
