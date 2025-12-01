@@ -60,12 +60,12 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     y_p15_t, y_p15_val = y_p15_train[:split_idx], y_p15_train[split_idx:]
     
     model_p15 = CatBoostClassifier(
-        iterations=2000, 
+        iterations=1000, 
         learning_rate=0.03, 
         depth=6, # Reduced depth for CPU
         l2_leaf_reg=3,
         border_count=128,
-        early_stopping_rounds=200, 
+        early_stopping_rounds=100, 
         eval_metric='AUC',
         verbose=100
         # Removed GPU requirement for compatibility
@@ -82,12 +82,12 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     y_p3_t, y_p3_val = y_p3_train[:split_idx], y_p3_train[split_idx:]
     
     model_p3 = CatBoostClassifier(
-        iterations=2000, 
+        iterations=1000, 
         learning_rate=0.03, 
         depth=6,
         l2_leaf_reg=3,
         border_count=128,
-        early_stopping_rounds=200, 
+        early_stopping_rounds=100, 
         eval_metric='AUC',
         verbose=100
     )
@@ -103,12 +103,12 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     y_x_t, y_x_val = y_x_train[:split_idx], y_x_train[split_idx:]
     
     model_x = CatBoostRegressor(
-        iterations=2000, 
+        iterations=1000, 
         learning_rate=0.03, 
         depth=6,
         l2_leaf_reg=3,
         border_count=128,
-        early_stopping_rounds=200, 
+        early_stopping_rounds=100, 
         loss_function='RMSE',
         verbose=100
     )

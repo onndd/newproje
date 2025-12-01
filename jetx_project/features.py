@@ -76,12 +76,17 @@ def extract_features(history_full, current_index):
             all_features[f'w{w_size}_{k}'] = v
             
     # 3. Raw Numeric History (The Core Feature)
+    # 3. Raw Numeric History (The Core Feature)
     # Add the actual values of the last 200 games directly
+    # Safety Check: If we don't have enough history, we should ideally skip this sample.
+    # However, since start_index is usually 500, we are safe.
+    # If called with low index, we return 0.0 which is "safe" padding but technically noise.
     for lag in range(1, 201): 
         if current_index - lag + 1 >= 0:
             all_features[f'raw_lag_{lag}'] = history_full[current_index - lag + 1]
         else:
-            all_features[f'raw_lag_{lag}'] = 0.0
+            # Padding with 1.0 (minimum crash) is better than 0.0 for multipliers
+            all_features[f'raw_lag_{lag}'] = 1.0
             
     # --- 4. Psychological Features (RTP & Shockwave) ---
     
