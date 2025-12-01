@@ -6,33 +6,22 @@ from hmmlearn import hmm
 
 def train_hmm_model(values, n_components=3):
     """
-    Trains a Gaussian HMM to detect hidden states (regimes) of the game.
-    States could be: 
-    0: Low Volatility / Harvesting (Low multipliers)
-    1: Normal
-    2: High Volatility / Feeding (High multipliers)
+    Trains a Gaussian HMM on the data.
+    Uses Log transformation to handle the exponential nature of multipliers.
     """
-    # Reshape for HMM
-    X = values.reshape(-1, 1)
+    # Reshape and Log Transform
+    # JetX multipliers are exponential. Gaussian HMM works better with Log-Normal data.
+    values_log = np.log1p(values).reshape(-1, 1)
     
-    # We use GaussianHMM because multipliers are continuous
-    model = hmm.GaussianHMM(n_components=n_components, covariance_type="diag", n_iter=100)
-    model.fit(X)
+    model = hmm.GaussianHMM(n_components=n_components, covariance_type="full", n_iter=100)
+    model.fit(values_log)
     
-    # We need to identify which state is which.
-    # Usually, we sort states by their mean value.
-    # State with lowest mean = Cold/Harvest
-    # State with highest mean = Hot/Feeding
-    
+    # Analyze states to map them to Cold/Normal/Hot
     means = model.means_.flatten()
     sorted_indices = np.argsort(means)
     
-    # Create a mapping: 0 -> Cold, 1 -> Normal, 2 -> Hot
-    # The model's internal state 0 might be Hot, so we map it.
-    state_map = {
-        original_idx: sorted_idx 
-        for sorted_idx, original_idx in enumerate(sorted_indices)
-    }
+    # Map: Smallest Mean -> 0 (Cold), Medium -> 1 (Normal), Largest -> 2 (Hot)
+    state_map = {original: mapped for mapped, original in enumerate(sorted_indices)}
     
     return model, state_map
 
