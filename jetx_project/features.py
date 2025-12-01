@@ -192,3 +192,43 @@ def extract_features(history_full, current_index):
         all_features['last_long_streak_len'] = 0
 
     return all_features
+
+    # D. Volatility & "Fake High X" Detection
+    # Pattern: 
+    # 1. Low Volatility (Tease): Many 1.5x - 3.0x wins.
+    # 2. High Volatility (Shakeout): Alternating wins/losses.
+    # 3. Payoff: Big X.
+    
+    # 1. Volatility (Std Dev of last 20 games)
+    vol_window = 20
+    if current_index >= vol_window:
+        vol_slice = history_full[current_index-vol_window:current_index]
+        all_features['volatility_last_20'] = np.std(vol_slice)
+        
+        # 2. Chop Index (Alternating Pattern)
+        # Count how many times the color changed in the last 20 games
+        # Color change: (val_i < 1.5) != (val_i-1 < 1.5)
+        chop_count = 0
+        for i in range(1, len(vol_slice)):
+            prev_color = 1 if vol_slice[i-1] < 1.5 else 2
+            curr_color = 1 if vol_slice[i] < 1.5 else 2
+            if prev_color != curr_color:
+                chop_count += 1
+        all_features['chop_index_20'] = chop_count / vol_window
+    else:
+        all_features['volatility_last_20'] = 0.0
+        all_features['chop_index_20'] = 0.0
+        
+    # 3. Medium Win Streak (The Tease)
+    # Count consecutive games between 1.50 and 3.00
+    # This indicates a "Safe" period that might precede a storm or a big win.
+    medium_streak = 0
+    for i in range(current_index - 1, -1, -1):
+        val = history_full[i]
+        if 1.50 <= val <= 3.00:
+            medium_streak += 1
+        else:
+            break
+    all_features['medium_win_streak'] = medium_streak
+    
+    return all_features
