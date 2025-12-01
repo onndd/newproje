@@ -13,18 +13,13 @@ from .features import extract_features
 def prepare_model_a_data(values, hmm_states, start_index=500):
     """
     Prepares X (features) and y (targets) for Model A.
-    
-    Args:
-        values: Numpy array of all historical values.
-        hmm_states: Array of HMM states corresponding to values.
-        start_index: Index to start generating samples from.
-        
-    Returns:
-        X: DataFrame of features
-        y_p15: Target for > 1.5
-        y_p3: Target for > 3.0
-        y_x: Target for actual value
     """
+    if len(hmm_states) != len(values):
+        print(f"Warning: HMM States length ({len(hmm_states)}) != Values length ({len(values)}). Truncating to minimum.")
+        min_len = min(len(hmm_states), len(values))
+        values = values[:min_len]
+        hmm_states = hmm_states[:min_len]
+
     X_list = []
     y_p15_list = []
     y_p3_list = []
@@ -64,20 +59,19 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     X_t, X_val = X_train.iloc[:split_idx], X_train.iloc[split_idx:]
     
     # 1. Model P1.5 (Classifier)
-    print("\n--- Training Model A (P1.5) on GPU (Ultra Aggressive) ---")
+    print("\n--- Training Model A (P1.5) ---")
     y_p15_t, y_p15_val = y_p15_train[:split_idx], y_p15_train[split_idx:]
     
     model_p15 = CatBoostClassifier(
-        iterations=50000, # Increased to 50k
+        iterations=2000, 
         learning_rate=0.03, 
-        depth=10, 
+        depth=6, # Reduced depth for CPU
         l2_leaf_reg=3,
         border_count=128,
-        early_stopping_rounds=2000, # Increased patience
+        early_stopping_rounds=200, 
         eval_metric='AUC',
-        verbose=1000,
-        task_type="GPU",
-        devices='0'
+        verbose=100
+        # Removed GPU requirement for compatibility
     )
     model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))
     
@@ -87,20 +81,18 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     print(f"Validation Accuracy (P1.5): {acc_p15:.4f}")
 
     # 2. Model P3 (Classifier)
-    print("\n--- Training Model A (P3.0) on GPU (Ultra Aggressive) ---")
+    print("\n--- Training Model A (P3.0) ---")
     y_p3_t, y_p3_val = y_p3_train[:split_idx], y_p3_train[split_idx:]
     
     model_p3 = CatBoostClassifier(
-        iterations=50000, # Increased to 50k
+        iterations=2000, 
         learning_rate=0.03, 
-        depth=10,
+        depth=6,
         l2_leaf_reg=3,
         border_count=128,
-        early_stopping_rounds=2000, # Increased patience
+        early_stopping_rounds=200, 
         eval_metric='AUC',
-        verbose=1000,
-        task_type="GPU",
-        devices='0'
+        verbose=100
     )
     model_p3.fit(X_t, y_p3_t, eval_set=(X_val, y_p3_val))
     
@@ -110,20 +102,18 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     print(f"Validation Accuracy (P3.0): {acc_p3:.4f}")
 
     # 3. Model X (Regressor)
-    print("\n--- Training Model A (Regression) on GPU (Ultra Aggressive) ---")
+    print("\n--- Training Model A (Regression) ---")
     y_x_t, y_x_val = y_x_train[:split_idx], y_x_train[split_idx:]
     
     model_x = CatBoostRegressor(
-        iterations=50000, # Increased to 50k
+        iterations=2000, 
         learning_rate=0.03, 
-        depth=10,
+        depth=6,
         l2_leaf_reg=3,
         border_count=128,
-        early_stopping_rounds=2000, # Increased patience
+        early_stopping_rounds=200, 
         loss_function='RMSE',
-        verbose=1000,
-        task_type="GPU",
-        devices='0'
+        verbose=100
     )
     model_x.fit(X_t, y_x_t, eval_set=(X_val, y_x_val))
     

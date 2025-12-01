@@ -177,9 +177,9 @@ def extract_features(history_full, current_index):
             
     # Check if the loop finished with a long streak (at the very beginning of scan)
     if last_streak_end_idx == -1 and temp_streak_len >= 8:
-         last_streak_end_idx = max(-1, current_index - scan_limit) # Approximate
-         last_streak_type = temp_streak_type
-         last_streak_len = temp_streak_len
+        last_streak_end_idx = max(-1, current_index - scan_limit) # Approximate
+        last_streak_type = temp_streak_type
+        last_streak_len = temp_streak_len
          
     if last_streak_end_idx != -1:
         games_since_streak = current_index - last_streak_end_idx

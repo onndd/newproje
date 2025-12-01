@@ -125,11 +125,14 @@ def load_memory(model_dir='.'):
     data = joblib.load(os.path.join(model_dir, 'modelB_memory'))
     return data['nbrs'], data['patterns'], data['targets']
 
-def predict_model_b(nbrs, memory_targets, current_pattern):
     """
     Predicts using k-NN.
     """
-    distances, indices = nbrs.kneighbors([current_pattern])
+    # Ensure 2D array
+    if len(current_pattern.shape) == 1:
+        current_pattern = current_pattern.reshape(1, -1)
+        
+    distances, indices = nbrs.kneighbors(current_pattern)
     
     # Aggregate targets of neighbors
     neighbor_targets = [memory_targets[i] for i in indices[0]]
