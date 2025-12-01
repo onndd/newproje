@@ -68,4 +68,49 @@ def extract_features(history_full, current_index):
         else:
             all_features[f'raw_lag_{lag}'] = 0.0
             
+    # --- 4. Psychological Features (RTP & Shockwave) ---
+    
+    # A. RTP Tracking (Virtual Bankroll)
+    # Calculate "Casino Net Profit" over the last 500 games
+    # Assumption: 1 unit bet on every game. 
+    # If Result < 1.00 (Crash), Casino keeps 1 unit.
+    # If Result >= 1.00, Casino pays (Result - 1) units? 
+    # Wait, in JetX, if you don't cash out, you lose. 
+    # But we don't know when players cash out.
+    # Simplification: We track the "Potential Payout" vs "Input".
+    # Let's track the average multiplier. If Avg > 1.00, players *could* be winning.
+    # Better metric: "Theoretical RTP Balance".
+    # If we sum (Multiplier - 0.97), we see if the game is paying above or below theoretical RTP.
+    
+    rtp_window = 500
+    if current_index >= rtp_window:
+        rtp_slice = history_full[current_index-rtp_window:current_index]
+        # Calculate deviation from expected return (e.g. 0.97)
+        # If sum(rtp_slice) is high, the game has been generous -> Expect correction (Cold)
+        # If sum(rtp_slice) is low, the game has been stingy -> Expect correction (Hot)
+        rtp_balance = np.sum(rtp_slice) - (rtp_window * 0.97) 
+        all_features['rtp_balance_500'] = rtp_balance
+    else:
+        all_features['rtp_balance_500'] = 0.0
+        
+    # B. Shockwave Analysis (Big X Context)
+    # Find the last "Big X" (e.g. >= 10.0)
+    last_big_x_idx = -1
+    for i in range(current_index - 1, max(-1, current_index - 200), -1):
+        if history_full[i] >= 10.0:
+            last_big_x_idx = i
+            break
+            
+    if last_big_x_idx != -1:
+        games_since_big_x = current_index - last_big_x_idx
+        all_features['games_since_big_x'] = games_since_big_x
+        all_features['last_big_x_val'] = history_full[last_big_x_idx]
+        
+        # "Aftershock" phase: Are we in the danger zone?
+        all_features['is_aftershock'] = 1 if games_since_big_x <= 50 else 0
+    else:
+        all_features['games_since_big_x'] = 200 # Max cap
+        all_features['last_big_x_val'] = 0.0
+        all_features['is_aftershock'] = 0
+            
     return all_features
