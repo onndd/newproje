@@ -191,8 +191,6 @@ def extract_features(history_full, current_index):
         all_features['last_long_streak_type'] = 0
         all_features['last_long_streak_len'] = 0
 
-    return all_features
-
     # D. Volatility & "Fake High X" Detection
     # Pattern: 
     # 1. Low Volatility (Tease): Many 1.5x - 3.0x wins.

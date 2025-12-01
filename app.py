@@ -63,9 +63,12 @@ if st.button("Add Result & Predict"):
     current_idx = len(history_arr) - 1
     
     if len(history_arr) < 50:
-        st.warning(f"Not enough data for predictions. Need at least 50, have {len(history_arr)}")
-    else:
-        # --- Model A Prediction ---
+    # Initialize predictions to 0 or None
+    pred_a_p15, pred_a_p3, pred_a_x = 0, 0, 0
+    pred_b_p15, pred_b_p3, pred_b_x = 0, 0, 0
+
+    # --- Model A Prediction ---
+    if len(history_arr) >= 500:
         # Extract features for the CURRENT state (to predict NEXT)
         # Note: extract_features takes the full history and the index of the 'current' item.
         # We want to predict for current_idx + 1.
@@ -77,16 +80,6 @@ if st.button("Add Result & Predict"):
         pred_a_p15 = ma_p15.predict_proba(feats_df)[0][1]
         pred_a_p3 = ma_p3.predict_proba(feats_df)[0][1]
         pred_a_x = ma_x.predict(feats_df)[0]
-        
-        # --- Model B Prediction ---
-        if len(history_arr) >= 200:
-            pat = create_pattern_vector(history_arr, current_idx)
-            pred_b_p15, pred_b_p3, pred_b_x = predict_model_b(mb_nbrs, mb_targs, pat)
-        else:
-            pred_b_p15, pred_b_p3, pred_b_x = 0, 0, 0
-            st.warning("Not enough data for Model B (Need 200)")
-
-        # --- Display ---
         col1, col2, col3 = st.columns(3)
         
         with col1:

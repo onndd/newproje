@@ -6,8 +6,6 @@ scikit-learn
 pandas
 numpy
 matplotlib
-seaborndas
-numpy
-scikit-learn
+seaborn
 joblib
 streamlit
