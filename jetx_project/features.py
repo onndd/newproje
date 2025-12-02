@@ -331,23 +331,68 @@ def extract_features_batch(df):
     
     df['is_aftershock'] = (df['games_since_big_x'] <= 50).astype(float)
     
-    # 6. Long Streak (>=8) Analysis
-    # This is complex to vectorize perfectly. 
-    # Simplified: "Games since last streak >= 8"
-    # We can identify streaks by grouping
-    # For training speed, we might skip the complex "type" and "len" if they are slow,
-    # or implement a fast approximation.
-    # Let's use the 'games_since_long_streak' as a placeholder or skip for batch speed if acceptable.
-    # User asked for speed. Let's implement a fast version.
+    # 6. Long Streak (>=8) Analysis (Vectorized)
+    # We need to find the end index of the last streak >= 8.
     
-    # Identify runs
-    # This part is hard to do purely with rolling.
-    # We will skip the complex 'last_long_streak_type' for batch to save time, 
-    # or use 0.0 defaults. The loop version had it, but it was slow.
-    # Let's fill with 0.0 for now to keep it runnable and fast.
-    df['games_since_long_streak'] = 200.0
-    df['last_long_streak_type'] = 0.0
-    df['last_long_streak_len'] = 0.0
+    # Create binary color series (0: Red, 1: Green)
+    colors = (values >= 1.5).astype(int)
+    
+    # Identify runs using diff
+    # 1 where change occurs
+    change_mask = colors.diff().ne(0)
+    # Cumulative sum gives group IDs for consecutive runs
+    run_ids = change_mask.cumsum()
+    
+    # Calculate length of each run
+    # Group by run_id and count
+    run_lengths = colors.groupby(run_ids).transform('count')
+    
+    # Mark indices where a long streak ENDS
+    # A streak ends at the last index of the group.
+    # We want to know if the group it belongs to has length >= 8.
+    # And we only care about the end of it.
+    
+    # Shift run_ids to find end of runs (where next is different)
+    # or just use the fact that we have run_lengths aligned.
+    
+    # We want to find indices 'i' such that:
+    # 1. The run ending at 'i' has length >= 8.
+    
+    # Let's find the end indices of runs.
+    # A run ends where the NEXT value is different (change_mask is True at i+1)
+    # or it's the last element.
+    
+    # Actually, simpler:
+    # Mark all positions that are part of a long streak
+    is_long_streak = (run_lengths >= 8)
+    
+    # We want "Games Since Last Long Streak ENDED".
+    # So we want the index of the last time `is_long_streak` was True AND the streak ended.
+    
+    # Find end of runs
+    # Shift(-1) of run_ids != run_ids
+    run_ends = (run_ids != run_ids.shift(-1))
+    
+    # Mask for "End of a Long Streak"
+    long_streak_end_mask = is_long_streak & run_ends
+    
+    # Now find distance to last True in long_streak_end_mask
+    last_long_streak_end_idx = pd.Series(np.where(long_streak_end_mask, df.index, np.nan), index=df.index).ffill().shift(1)
+    
+    df['games_since_long_streak'] = df.index - last_long_streak_end_idx
+    df['games_since_long_streak'] = df['games_since_long_streak'].fillna(200.0)
+    
+    # Type and Length of that last streak
+    # We can fetch values using the index
+    # We need to handle NaNs carefully.
+    
+    # Create a series for type and len at the end index
+    streak_types = colors.where(long_streak_end_mask) + 1 # 1: Red, 2: Green
+    streak_lens = run_lengths.where(long_streak_end_mask)
+    
+    # Propagate these values forward
+    df['last_long_streak_type'] = streak_types.ffill().shift(1).fillna(0.0)
+    df['last_long_streak_len'] = streak_lens.ffill().shift(1).fillna(0.0)
     
     # 7. Medium Win Streak
     # Games since NOT (1.5 <= val <= 3.0)

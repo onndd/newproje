@@ -71,14 +71,21 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, seq_length)
     
     # Validation sequences:
-    # STRICT MODE: Do not concatenate train end to val start.
-    # This avoids any potential boundary leakage or scaler artifact issues.
-    # We accept losing the first 'seq_length' samples of validation.
-    if len(val_scaled) > seq_length:
-        X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, seq_length)
+    # We want to predict the FIRST validation point, which requires 'seq_length' history.
+    # That history comes from the end of the training set.
+    # So we prepend the last 'seq_length' of train to val.
+    
+    if len(train_scaled) >= seq_length:
+        train_tail = train_scaled[-seq_length:]
+        val_extended = np.concatenate([train_tail, val_scaled])
     else:
-        # Not enough validation data, fallback to a slice of train (just for code stability)
-        print("Warning: Not enough validation data for sequence. Using last part of train.")
+        # Fallback if train is too small (unlikely)
+        val_extended = val_scaled
+        
+    if len(val_extended) > seq_length:
+        X_val, y_p15_val, y_p3_val, _ = create_sequences(val_extended, seq_length)
+    else:
+        print("Warning: Not enough validation data even with context.")
         X_val, y_p15_val, y_p3_val, _ = create_sequences(train_scaled[-seq_length*2:], seq_length)
     
     # Reshape for LSTM

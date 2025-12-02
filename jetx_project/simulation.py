@@ -39,7 +39,7 @@ class Bankroll:
             "Profit": self.balance - self.history[0]
         }
 
-def run_simulation(predictions_df, model_name="Model A"):
+def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.5):
     """
     Runs the simulation for 3 strategies based on predictions.
     
