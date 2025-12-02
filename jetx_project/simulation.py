@@ -53,6 +53,7 @@ def run_simulation(predictions_df, model_name="Model A"):
     kasa1 = Bankroll()
     kasa2 = Bankroll()
     kasa3 = Bankroll()
+    kasa4 = Bankroll()
     
     # Standardize column names
     df = predictions_df.copy()
@@ -90,7 +91,7 @@ def run_simulation(predictions_df, model_name="Model A"):
         if p_1_5 >= 0.75:
             bet = 10
             target = 1.5
-            if true_val >= target:
+            if true_val > target:
                 profit = bet * (target - 1)
             else:
                 profit = -bet
@@ -102,7 +103,7 @@ def run_simulation(predictions_df, model_name="Model A"):
         if p_1_5 >= 0.85:
             bet = 20
             target = 1.5
-            if true_val >= target:
+            if true_val > target:
                 profit = bet * (target - 1)
             else:
                 profit = -bet
@@ -123,12 +124,48 @@ def run_simulation(predictions_df, model_name="Model A"):
             kasa3.update(profit)
         else:
             kasa3.update(0)
+
+        # --- Kasa 4: Smart Kelly (Dynamic Staking) ---
+        # Kelly Formula: f = (bp - q) / b
+        # b = odds - 1 (e.g. for 1.50x, b = 0.5)
+        # p = probability of winning (p_1_5)
+        # q = probability of losing (1 - p)
+        
+        # We only bet if p_1_5 > 0.65 (Safety margin)
+        if p_1_5 > 0.65:
+            target = 1.50
+            b = target - 1 # 0.5
+            p = p_1_5
+            q = 1 - p
+            
+            kelly_fraction = (b * p - q) / b
+            
+            # Safety: Cap Kelly at 5% of bankroll to reduce volatility
+            # Professional gamblers rarely use Full Kelly. Half Kelly or Quarter Kelly is safer.
+            # We use a max cap of 0.05 (5%)
+            bet_fraction = min(max(kelly_fraction, 0), 0.05)
+            
+            if bet_fraction > 0:
+                bet = kasa4.balance * bet_fraction
+                # Minimum bet check (e.g. 1 unit)
+                bet = max(bet, 1.0)
+                
+                if true_val > target:
+                    profit = bet * (target - 1)
+                else:
+                    profit = -bet
+                kasa4.update(profit)
+            else:
+                kasa4.update(0)
+        else:
+            kasa4.update(0)
             
     # Report
     print(f"--- Simulation Results for {model_name} ---")
     print(f"Kasa 1 (1.5x @ 75%): {kasa1.get_stats()}")
     print(f"Kasa 2 (1.5x @ 85%): {kasa2.get_stats()}")
     print(f"Kasa 3 (Dynamic @ 55%): {kasa3.get_stats()}")
+    print(f"Kasa 4 (Smart Kelly): {kasa4.get_stats()}")
     print("-" * 30)
     
     return {
