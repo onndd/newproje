@@ -11,14 +11,31 @@ def train_hmm_model(values, n_components=3):
     """
     # Reshape and Log Transform
     # JetX multipliers are exponential. Gaussian HMM works better with Log-Normal data.
+    # We switch to GMMHMM (Gaussian Mixture) to better model the heavy tails and complex distribution.
     values_log = np.log1p(values).reshape(-1, 1)
     
-    model = hmm.GaussianHMM(n_components=n_components, covariance_type="full", n_iter=100)
+    # GMMHMM with 3 components per state allows for more flexible density modeling
+    # e.g. a state can have a "peak" and a "tail"
+    model = hmm.GMMHMM(n_components=n_components, n_mix=3, covariance_type="full", n_iter=100, random_state=42)
     model.fit(values_log)
     
     # Analyze states to map them to Cold/Normal/Hot
-    means = model.means_.flatten()
-    sorted_indices = np.argsort(means)
+    # For GMMHMM, means_ is (n_components, n_mix, n_features)
+    # We can take the weighted average mean of mixtures for each component to sort them
+    
+    # weights: (n_components, n_mix)
+    # means: (n_components, n_mix, 1)
+    
+    # Calculate effective mean for each state
+    state_means = []
+    for i in range(n_components):
+        w = model.weights_[i]
+        m = model.means_[i].flatten()
+        effective_mean = np.dot(w, m)
+        state_means.append(effective_mean)
+        
+    state_means = np.array(state_means)
+    sorted_indices = np.argsort(state_means)
     
     # Map: Smallest Mean -> 0 (Cold), Medium -> 1 (Normal), Largest -> 2 (Hot)
     state_map = {original: mapped for mapped, original in enumerate(sorted_indices)}

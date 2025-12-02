@@ -15,10 +15,11 @@ def create_pattern_vector(values, end_index, length=300):
         
     window = values[end_index - length + 1 : end_index + 1]
     
-    # 1. Numeric Values (Normalized to be roughly 0-1 range for k-NN)
-    # Assuming max multiplier rarely exceeds 100, we divide by 100.
-    # We clip at 100 to avoid outliers distorting distance.
-    norm_window = np.clip(window, 0, 100) / 100.0
+    # 1. Numeric Values (Logarithmic Scaling)
+    # We use log1p to handle large multipliers (e.g. 5000x) without them dominating,
+    # while preserving the relative magnitude differences.
+    # Normalized by log1p(1000) approx 6.9 to keep range roughly 0-1.
+    norm_window = np.log1p(window) / np.log1p(1000.0)
     
     # 2. Categorical IDs
     s1 = [get_set1_id(v) for v in window]
@@ -100,8 +101,9 @@ def train_model_b(patterns):
     """
     Trains the NearestNeighbors model.
     """
-    # Using 'brute' force algorithm to ensure exact matches and utilize computation power
-    nbrs = NearestNeighbors(n_neighbors=200, algorithm='brute', metric='manhattan')
+    # Using 'auto' allows scikit-learn to choose the best algorithm (BallTree, KDTree, or Brute)
+    # based on the data structure, which is often faster and more memory efficient than forcing 'brute'.
+    nbrs = NearestNeighbors(n_neighbors=200, algorithm='auto', metric='manhattan')
     nbrs.fit(patterns)
     return nbrs
 
