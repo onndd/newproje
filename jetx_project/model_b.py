@@ -10,10 +10,18 @@ def create_pattern_vector(values, end_index, length=300):
     Creates a single pattern vector for the window ending at end_index.
     Vector = [Normalized_Values... Set1_ids... Set2_ids... Set3_ids...]
     """
-    if end_index < length - 1:
+    # Strict Length Check
+    # We need exactly 'length' items ending at end_index.
+    # Start index would be: end_index - length + 1
+    start_index = end_index - length + 1
+    
+    if start_index < 0:
         return None
         
-    window = values[end_index - length + 1 : end_index + 1]
+    window = values[start_index : end_index + 1]
+    
+    if len(window) != length:
+        return None
     
     # 1. Numeric Values (Logarithmic Scaling)
     # We use log1p to handle large multipliers (e.g. 5000x) without them dominating,

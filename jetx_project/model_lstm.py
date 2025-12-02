@@ -71,22 +71,16 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, seq_length)
     
     # Validation sequences:
-    # We want to predict the FIRST validation point, which requires 'seq_length' history.
-    # That history comes from the end of the training set.
-    # So we prepend the last 'seq_length' of train to val.
+    # To avoid ANY potential leakage from train_tail, we will strictly use val_scaled.
+    # We will lose the first 'seq_length' samples of validation, but this guarantees safety.
     
-    if len(train_scaled) >= seq_length:
-        train_tail = train_scaled[-seq_length:]
-        val_extended = np.concatenate([train_tail, val_scaled])
+    if len(val_scaled) > seq_length:
+        X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, seq_length)
     else:
-        # Fallback if train is too small (unlikely)
-        val_extended = val_scaled
-        
-    if len(val_extended) > seq_length:
-        X_val, y_p15_val, y_p3_val, _ = create_sequences(val_extended, seq_length)
-    else:
-        print("Warning: Not enough validation data even with context.")
-        X_val, y_p15_val, y_p3_val, _ = create_sequences(train_scaled[-seq_length*2:], seq_length)
+        print("Warning: Not enough validation data! Using last part of train as validation (suboptimal).")
+        # Fallback: Use last 20% of train
+        fallback_len = int(len(train_scaled) * 0.2)
+        X_val, y_p15_val, y_p3_val, _ = create_sequences(train_scaled[-fallback_len:], seq_length)
     
     # Reshape for LSTM
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))

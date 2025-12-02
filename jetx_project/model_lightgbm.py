@@ -16,15 +16,15 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train):
     
     # P1.5 Model
     print("Training LightGBM (P1.5)...")
-    clf_p15 = lgb.LGBMClassifier(n_estimators=1000, learning_rate=0.05, num_leaves=31)
+    clf_p15 = lgb.LGBMClassifier(n_estimators=2000, learning_rate=0.01, num_leaves=31)
     clf_p15.fit(X_t, y_p15_t, eval_set=[(X_val, y_p15_val)], eval_metric='logloss', 
-                callbacks=[lgb.early_stopping(50)])
+                callbacks=[lgb.early_stopping(100)])
     
     # P3.0 Model
     print("Training LightGBM (P3.0)...")
-    clf_p3 = lgb.LGBMClassifier(n_estimators=1000, learning_rate=0.05, num_leaves=31)
+    clf_p3 = lgb.LGBMClassifier(n_estimators=2000, learning_rate=0.01, num_leaves=31)
     clf_p3.fit(X_t, y_p3_t, eval_set=[(X_val, y_p3_val)], eval_metric='logloss',
-               callbacks=[lgb.early_stopping(50)])
+               callbacks=[lgb.early_stopping(100)])
                
     return clf_p15, clf_p3
 
