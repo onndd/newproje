@@ -12,7 +12,19 @@ def train_hmm_model(values, n_components=3):
     # Reshape and Log Transform
     # JetX multipliers are exponential. Gaussian HMM works better with Log-Normal data.
     # We switch to GMMHMM (Gaussian Mixture) to better model the heavy tails and complex distribution.
-    values_log = np.log1p(values).reshape(-1, 1)
+    # Zero-Inflated Logic: Filter out 1.00x (Instant Crashes)
+    # These are "Dirac Delta" spikes at 1.0 that distort the continuous distribution.
+    # We train HMM only on "Real Games" (e.g. > 1.01).
+    mask_real = values > 1.01
+    values_filtered = values[mask_real]
+    
+    print(f"HMM Training: Filtered {len(values) - len(values_filtered)} instant crashes (1.00x). Training on {len(values_filtered)} samples.")
+    
+    if len(values_filtered) < 100:
+        print("Warning: Not enough data after filtering! Using all data.")
+        values_filtered = values
+
+    values_log = np.log1p(values_filtered).reshape(-1, 1)
     
     # GMMHMM with 3 components per state allows for more flexible density modeling
     # e.g. a state can have a "peak" and a "tail"
@@ -50,6 +62,9 @@ def predict_hmm_state(model, values, state_map):
     """
     # Log Transform (Critical!)
     values_log = np.log1p(values).reshape(-1, 1)
+    
+    # Note: Even though we trained only on >1.01, we predict for ALL values.
+    # 1.00x values will likely be assigned to the "Cold" state (lowest mean), which is correct behavior.
     
     hidden_states = model.predict(values_log)
     
