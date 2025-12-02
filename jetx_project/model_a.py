@@ -17,30 +17,35 @@ def prepare_model_a_data(values, hmm_states, start_index=500):
         values = values[:min_len]
         hmm_states = hmm_states[:min_len]
 
-    X_list = []
-    y_p15_list = []
-    y_p3_list = []
-    y_x_list = []
+    # Convert to DataFrame for batch processing
+    df = pd.DataFrame({'value': values})
     
-    # We go up to len(values) - 2 because we need target at i+1
-    for i in range(start_index, len(values) - 1):
-        # Extract features using history up to i
-        feats = extract_features(values, i)
-        
-        # Add HMM State as a feature
-        # hmm_states[i] is the state at time i
-        feats['hmm_state'] = hmm_states[i]
-        
-        X_list.append(feats)
-        
-        # Target: Next value
-        target_val = values[i+1]
-        y_x_list.append(target_val)
-        y_p15_list.append(1 if target_val >= 1.5 else 0)
-        y_p3_list.append(1 if target_val >= 3.0 else 0)
-        
-    X = pd.DataFrame(X_list)
-    return X, np.array(y_p15_list), np.array(y_p3_list), np.array(y_x_list)
+    # Use Vectorized Feature Extraction (Much Faster)
+    from .features import extract_features_batch
+    X = extract_features_batch(df)
+    
+    # Add HMM State
+    X['hmm_state'] = hmm_states
+    
+    # Create Targets (Shifted by -1 because we predict next value)
+    # Target for row i is value[i+1]
+    # So we shift values by -1 to align "Next Value" with "Current Features"
+    y_x_series = df['value'].shift(-1)
+    y_p15_series = (y_x_series >= 1.5).astype(int)
+    y_p3_series = (y_x_series >= 3.0).astype(int)
+    
+    # Filter valid range
+    # We need start_index to avoid NaNs from rolling windows (usually 500)
+    # And we need to drop the last row because it has no target (NaN after shift)
+    
+    valid_mask = (X.index >= start_index) & (X.index < len(values) - 1)
+    
+    X = X[valid_mask]
+    y_p15 = y_p15_series[valid_mask].values
+    y_p3 = y_p3_series[valid_mask].values
+    y_x = y_x_series[valid_mask].values
+    
+    return X, y_p15, y_p3, y_x
 
 def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     """
