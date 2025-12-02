@@ -86,18 +86,25 @@ def extract_features(history_full, current_index):
     # 3. Raw Numeric History (Vectorized)
     # Extract last 200 values
     lag_max = 200
+    
+    # Get the slice (reversed)
     if current_index >= lag_max:
         raw_lags = history_arr[current_index-lag_max:current_index][::-1]
-        for i, val in enumerate(raw_lags):
-            all_features[f'raw_lag_{i+1}'] = val
     else:
-        # Handle early indices
         raw_lags = history_arr[:current_index][::-1]
-        for i, val in enumerate(raw_lags):
-            all_features[f'raw_lag_{i+1}'] = val
-        # Pad rest
-        for i in range(len(raw_lags), lag_max):
-            all_features[f'raw_lag_{i+1}'] = 1.0
+        
+    # Pad if necessary (with NaN)
+    if len(raw_lags) < lag_max:
+        raw_lags = np.pad(raw_lags, (0, lag_max - len(raw_lags)), constant_values=np.nan)
+        
+    # Create keys and update dictionary in one go
+    # Using dictionary comprehension or zip is faster than loop
+    # keys = [f'raw_lag_{i+1}' for i in range(lag_max)]
+    # all_features.update(zip(keys, raw_lags))
+    
+    # Even faster: direct dict creation if possible, but we are updating existing dict
+    for i, val in enumerate(raw_lags):
+         all_features[f'raw_lag_{i+1}'] = val
             
     # --- 4. Psychological Features (RTP & Shockwave) ---
     

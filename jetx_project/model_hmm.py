@@ -44,8 +44,9 @@ def train_hmm_model(values, n_components=3):
 
 def predict_hmm_state(model, values, state_map):
     """
-    Predicts the state for a sequence of values.
+    Predicts the state for a sequence of values using a pre-trained model.
     Returns the mapped state for EACH value in the sequence.
+    CRITICAL: This function does NOT refit the model. It uses the provided model.
     """
     # Log Transform (Critical!)
     values_log = np.log1p(values).reshape(-1, 1)

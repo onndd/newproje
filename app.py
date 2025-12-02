@@ -12,18 +12,36 @@ from jetx_project.config import WINDOWS
 from jetx_project.model_a import load_models, prepare_model_a_data
 from jetx_project.features import extract_features
 from jetx_project.model_b import load_memory, create_pattern_vector, predict_model_b
+from jetx_project.model_lstm import load_lstm_models, create_sequences
+from jetx_project.model_lightgbm import load_lightgbm_models
+from jetx_project.model_mlp import load_mlp_models
+from jetx_project.model_hmm import load_hmm_model, predict_hmm_state
+from jetx_project.ensemble import load_meta_learner, prepare_meta_features, predict_meta
 
 st.set_page_config(page_title="JetX Predictor", layout="wide")
 
-st.title("JetX AI Prediction System")
+st.title("JetX AI Prediction System (Ensemble Powered)")
 
 # Load Models
 @st.cache_resource
 def load_all_models():
     try:
+        # Load all individual models
         ma_p15, ma_p3, ma_x = load_models('.')
-        mb_nbrs, mb_pats, mb_targs = load_memory('.')
-        return ma_p15, ma_p3, ma_x, mb_nbrs, mb_pats, mb_targs
+        mb_nbrs, mb_pca, mb_pats, mb_targs = load_memory('.')
+        mc_p15, mc_p3, mc_scaler = load_lstm_models('.')
+        md_p15, md_p3 = load_lightgbm_models('.')
+        me_p15, me_p3, me_cols = load_mlp_models('.')
+        hmm_model, hmm_map = load_hmm_model('.')
+        meta_model, meta_scaler = load_meta_learner('.')
+        
+        return (ma_p15, ma_p3, ma_x, 
+                mb_nbrs, mb_pca, mb_targs, 
+                mc_p15, mc_p3, mc_scaler,
+                md_p15, md_p3,
+                me_p15, me_p3, me_cols,
+                hmm_model, hmm_map,
+                meta_model, meta_scaler)
     except Exception as e:
         st.error(f"Error loading models: {e}")
         return None
@@ -31,10 +49,16 @@ def load_all_models():
 models = load_all_models()
 
 if models:
-    ma_p15, ma_p3, ma_x, mb_nbrs, mb_pats, mb_targs = models
-    st.success("Models loaded successfully!")
+    (ma_p15, ma_p3, ma_x, 
+     mb_nbrs, mb_pca, mb_targs, 
+     mc_p15, mc_p3, mc_scaler,
+     md_p15, md_p3,
+     me_p15, me_p3, me_cols,
+     hmm_model, hmm_map,
+     meta_model, meta_scaler) = models
+    st.success("All Models & Ensemble Loaded Successfully!")
 else:
-    st.warning("Please train models first using the Orchestrator Notebook.")
+    st.warning("Please train models first using the Orchestrator.")
     st.stop()
 
 # Session State for History
@@ -62,86 +86,111 @@ if st.button("Add Result & Predict"):
     history_arr = np.array(st.session_state.history)
     current_idx = len(history_arr) - 1
     
-    # Initialize predictions to 0
-    pred_a_p15, pred_a_p3, pred_a_x = 0.0, 0.0, 0.0
-    pred_b_p15, pred_b_p3, pred_b_x = 0.0, 0.0, 0.0
+    # Initialize probabilities
+    probs = {
+        'A': 0.0, 'B': 0.0, 'C': 0.0, 'D': 0.0, 'E': 0.0
+    }
     
-    model_a_active = False
-    model_b_active = False
-
-    # --- Model A Prediction (Needs 500 data points) ---
+    # --- Feature Extraction ---
     if len(history_arr) >= 500:
         try:
             feats = extract_features(history_arr, current_idx)
             feats_df = pd.DataFrame([feats])
             
-            pred_a_p15 = ma_p15.predict_proba(feats_df)[0][1]
-            pred_a_p3 = ma_p3.predict_proba(feats_df)[0][1]
-            pred_a_x = ma_x.predict(feats_df)[0]
-            model_a_active = True
+            # Model A
+            probs['A'] = ma_p15.predict_proba(feats_df)[0][1]
+            
+            # Model D
+            probs['D'] = md_p15.predict_proba(feats_df)[0][1]
+            
+            # Model E
+            feats_mlp = feats_df[me_cols]
+            probs['E'] = me_p15.predict_proba(feats_mlp)[0][1]
+            
         except Exception as e:
-            st.error(f"Model A Error: {e}")
-    
-    # --- Model B Prediction (Needs 300 data points) ---
+            st.error(f"Feature Extraction Error: {e}")
+
+    # --- Pattern Recognition (Model B) ---
     if len(history_arr) >= 300:
         try:
             pat = create_pattern_vector(history_arr, current_idx)
-            # Reshape for single prediction
-            pat_reshaped = pat.reshape(1, -1)
-            pred_b_p15, pred_b_p3, pred_b_x = predict_model_b(mb_nbrs, mb_targs, pat_reshaped)
-            model_b_active = True
+            if pat is not None:
+                pat_reshaped = pat.reshape(1, -1)
+                probs['B'], _, _ = predict_model_b(mb_nbrs, mb_pca, mb_targs, pat_reshaped)
         except Exception as e:
             st.error(f"Model B Error: {e}")
-
+            
+    # --- LSTM (Model C) ---
+    if len(history_arr) >= 200:
+        try:
+            seq_len = 200
+            # Get last seq_len values
+            last_seq = history_arr[-seq_len:]
+            # Scale
+            last_seq_scaled = mc_scaler.transform(last_seq.reshape(-1, 1))
+            X_lstm = last_seq_scaled.reshape(1, seq_len, 1)
+            probs['C'] = mc_p15.predict(X_lstm)[0][0]
+        except Exception as e:
+            st.error(f"Model C Error: {e}")
+            
+    # --- HMM State ---
+    try:
+        # Predict state for the *entire* history to get the latest state context
+        # Ideally we just need the last state, but HMM is sequential.
+        # For speed, we can take a recent window if history is huge.
+        hmm_window = 500
+        if len(history_arr) > hmm_window:
+            hmm_input = history_arr[-hmm_window:]
+        else:
+            hmm_input = history_arr
+            
+        hmm_states = predict_hmm_state(hmm_model, hmm_input, hmm_map)
+        current_state = hmm_states[-1]
+    except Exception as e:
+        st.error(f"HMM Error: {e}")
+        current_state = 1 # Default to Normal
+        
+    # --- ENSEMBLE PREDICTION ---
+    # Prepare meta features
+    # Order: A, B, C, D, E, HMM_State
+    # Note: prepare_meta_features expects arrays, so we wrap in list
+    
+    meta_X = prepare_meta_features(
+        np.array([probs['A']]),
+        np.array([probs['B']]),
+        np.array([probs['C']]),
+        np.array([probs['D']]),
+        np.array([probs['E']]),
+        np.array([current_state])
+    )
+    
+    final_prob = predict_meta(meta_model, meta_scaler, meta_X)[0]
+    
     # --- Display Results ---
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.subheader("Model A (Feature)")
-        if model_a_active:
-            st.metric("P(>1.5)", f"{pred_a_p15:.2%}", delta_color="normal" if pred_a_p15 < 0.8 else "inverse")
-            st.metric("P(>3.0)", f"{pred_a_p3:.2%}")
-            st.metric("Pred X", f"{pred_a_x:.2f}")
-        else:
-            st.warning("Need 500+ data points")
-            
-    with col2:
-        st.subheader("Model B (Pattern)")
-        if model_b_active:
-            st.metric("P(>1.5)", f"{pred_b_p15:.2%}")
-            st.metric("P(>3.0)", f"{pred_b_p3:.2%}")
-            st.metric("Pred X", f"{pred_b_x:.2f}")
-        else:
-            st.warning("Need 300+ data points")
-
-    with col3:
-        st.subheader("Ensemble / Decision")
+        st.subheader("Individual Models")
+        st.write(f"CatBoost (A): {probs['A']:.2%}")
+        st.write(f"k-NN (B): {probs['B']:.2%}")
+        st.write(f"LSTM (C): {probs['C']:.2%}")
+        st.write(f"LightGBM (D): {probs['D']:.2%}")
+        st.write(f"MLP (E): {probs['E']:.2%}")
         
-        # Calculate Average based on active models
-        if model_a_active and model_b_active:
-            avg_p15 = (pred_a_p15 + pred_b_p15) / 2
-            avg_p3 = (pred_a_p3 + pred_b_p3) / 2
-        elif model_a_active:
-            avg_p15 = pred_a_p15
-            avg_p3 = pred_a_p3
-        elif model_b_active:
-            avg_p15 = pred_b_p15
-            avg_p3 = pred_b_p3
+    with col2:
+        st.subheader("Market Context")
+        state_names = {0: "Cold (Düşük)", 1: "Normal", 2: "Hot (Yüksek)"}
+        st.metric("HMM Regime", state_names.get(current_state, "Unknown"))
+        
+    with col3:
+        st.subheader("ENSEMBLE DECISION")
+        st.metric("Final Probability (>1.5x)", f"{final_prob:.2%}", 
+                 delta="High Confidence" if final_prob > 0.65 else "Low Confidence")
+        
+        if final_prob > 0.65:
+            st.success("🚀 SIGNAL: BET (1.50x)")
         else:
-            avg_p15 = 0.0
-            avg_p3 = 0.0
-            
-        if model_a_active or model_b_active:
-            st.metric("Avg P(>1.5)", f"{avg_p15:.2%}")
-            
-            if avg_p15 > 0.8:
-                st.success("SIGNAL: SAFE BET (1.5x)")
-            elif avg_p3 > 0.6: 
-                st.warning("SIGNAL: RISK BET (3x)")
-            else:
-                st.info("NO SIGNAL")
-        else:
-            st.write("Waiting for more data...")
+            st.error("🛑 SIGNAL: WAIT")
 
 # Show History
 st.subheader("History")

@@ -97,46 +97,68 @@ def build_memory(values, start_index=300):
             
     return np.array(patterns), targets
 
-def train_model_b(patterns):
+def train_model_b(patterns, n_components=50):
     """
-    Trains the NearestNeighbors model.
+    Trains the NearestNeighbors model with PCA dimensionality reduction.
     """
+    from sklearn.decomposition import PCA
+    
+    # 1. PCA Reduction
+    # Reduce dimensions to save memory and speed up query
+    # Check if we have enough samples for PCA
+    n_samples = len(patterns)
+    n_comp = min(n_components, n_samples, patterns.shape[1])
+    
+    pca = PCA(n_components=n_comp)
+    patterns_reduced = pca.fit_transform(patterns)
+    
+    # 2. Train k-NN
     # Using 'auto' allows scikit-learn to choose the best algorithm (BallTree, KDTree, or Brute)
     # based on the data structure, which is often faster and more memory efficient than forcing 'brute'.
     nbrs = NearestNeighbors(n_neighbors=200, algorithm='auto', metric='manhattan')
-    nbrs.fit(patterns)
-    return nbrs
+    nbrs.fit(patterns_reduced)
+    
+    return nbrs, pca
 
-def save_memory(nbrs, patterns, targets, output_dir='.'):
+def save_memory(nbrs, pca, patterns, targets, output_dir='.'):
     """
-    Saves the k-NN model and the data.
+    Saves the k-NN model, PCA, and the data.
     """
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
     joblib.dump({
         'nbrs': nbrs,
-        'patterns': patterns,
+        'pca': pca,
+        # 'patterns': patterns,  <-- REMOVED to save space (200MB+ -> <10MB)
+        # We don't need raw patterns for inference, only the tree (nbrs) and PCA.
         'targets': targets
     }, os.path.join(output_dir, 'modelB_memory'))
-    print(f"Model B memory saved to {output_dir}")
+    print(f"Model B memory saved to {output_dir} (Optimized: No raw patterns)")
 
 def load_memory(model_dir='.'):
     """
     Loads Model B memory.
     """
     data = joblib.load(os.path.join(model_dir, 'modelB_memory'))
-    return data['nbrs'], data['patterns'], data['targets']
+    # Return None for patterns as they are not saved anymore
+    return data['nbrs'], data.get('pca'), data.get('patterns', None), data['targets']
 
-def predict_model_b(nbrs, memory_targets, current_pattern):
+def predict_model_b(nbrs, pca, memory_targets, current_pattern):
     """
-    Predicts using k-NN.
+    Predicts using k-NN with PCA.
     """
     # Ensure 2D array
     if len(current_pattern.shape) == 1:
         current_pattern = current_pattern.reshape(1, -1)
         
-    distances, indices = nbrs.kneighbors(current_pattern)
+    # Transform with PCA if available
+    if pca is not None:
+        current_pattern_reduced = pca.transform(current_pattern)
+    else:
+        current_pattern_reduced = current_pattern
+        
+    distances, indices = nbrs.kneighbors(current_pattern_reduced)
     
     # Aggregate targets of neighbors
     neighbor_targets = [memory_targets[i] for i in indices[0]]

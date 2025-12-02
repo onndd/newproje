@@ -80,6 +80,15 @@ def run_simulation(predictions_df, model_name="Model A"):
     if missing:
         print(f"Error: Missing columns for simulation: {missing}")
         return None
+        
+    # Stop-Loss Flags
+    kasa1_active = True
+    kasa2_active = True
+    kasa3_active = True
+    kasa4_active = True
+    
+    # Drawdown Limit (e.g., Stop if we lose 50% of peak bankroll)
+    DRAWDOWN_LIMIT = max_drawdown_limit 
     
     for _, row in df.iterrows():
         true_val = row['true_val']
@@ -87,8 +96,14 @@ def run_simulation(predictions_df, model_name="Model A"):
         p_3 = row['p_3']
         pred_x = row['pred_x']
         
+        # Check Stop-Loss Conditions
+        if kasa1.max_drawdown > (kasa1.max_balance * DRAWDOWN_LIMIT): kasa1_active = False
+        if kasa2.max_drawdown > (kasa2.max_balance * DRAWDOWN_LIMIT): kasa2_active = False
+        if kasa3.max_drawdown > (kasa3.max_balance * DRAWDOWN_LIMIT): kasa3_active = False
+        if kasa4.max_drawdown > (kasa4.max_balance * DRAWDOWN_LIMIT): kasa4_active = False
+        
         # --- Kasa 1: 1.5x, %75 confidence ---
-        if p_1_5 >= 0.75:
+        if kasa1_active and p_1_5 >= 0.75:
             bet = 10
             target = 1.5
             if true_val > target:
@@ -100,7 +115,7 @@ def run_simulation(predictions_df, model_name="Model A"):
             kasa1.update(0) # No bet
             
         # --- Kasa 2: 1.5x, %85 confidence ---
-        if p_1_5 >= 0.85:
+        if kasa2_active and p_1_5 >= 0.85:
             bet = 20
             target = 1.5
             if true_val > target:
@@ -112,7 +127,7 @@ def run_simulation(predictions_df, model_name="Model A"):
             kasa2.update(0)
             
         # --- Kasa 3: 3x focus, %55 confidence ---
-        if p_3 >= 0.55:
+        if kasa3_active and p_3 >= 0.55:
             bet = 10
             # Target exit: max(1.5, 0.8 * x_pred)
             target = max(1.5, 0.8 * pred_x)
@@ -126,13 +141,7 @@ def run_simulation(predictions_df, model_name="Model A"):
             kasa3.update(0)
 
         # --- Kasa 4: Smart Kelly (Dynamic Staking) ---
-        # Kelly Formula: f = (bp - q) / b
-        # b = odds - 1 (e.g. for 1.50x, b = 0.5)
-        # p = probability of winning (p_1_5)
-        # q = probability of losing (1 - p)
-        
-        # We only bet if p_1_5 > 0.65 (Safety margin)
-        if p_1_5 > 0.65:
+        if kasa4_active and p_1_5 > 0.65:
             target = 1.50
             b = target - 1 # 0.5
             p = p_1_5
@@ -140,14 +149,11 @@ def run_simulation(predictions_df, model_name="Model A"):
             
             kelly_fraction = (b * p - q) / b
             
-            # Safety: Cap Kelly at 5% of bankroll to reduce volatility
-            # Professional gamblers rarely use Full Kelly. Half Kelly or Quarter Kelly is safer.
-            # We use a max cap of 0.05 (5%)
+            # Safety: Cap Kelly at 5% of bankroll
             bet_fraction = min(max(kelly_fraction, 0), 0.05)
             
             if bet_fraction > 0:
                 bet = kasa4.balance * bet_fraction
-                # Minimum bet check (e.g. 1 unit)
                 bet = max(bet, 1.0)
                 
                 if true_val > target:
@@ -162,14 +168,15 @@ def run_simulation(predictions_df, model_name="Model A"):
             
     # Report
     print(f"--- Simulation Results for {model_name} ---")
-    print(f"Kasa 1 (1.5x @ 75%): {kasa1.get_stats()}")
-    print(f"Kasa 2 (1.5x @ 85%): {kasa2.get_stats()}")
-    print(f"Kasa 3 (Dynamic @ 55%): {kasa3.get_stats()}")
-    print(f"Kasa 4 (Smart Kelly): {kasa4.get_stats()}")
+    print(f"Kasa 1 (1.5x @ 75%): {kasa1.get_stats()} {'(STOPPED)' if not kasa1_active else ''}")
+    print(f"Kasa 2 (1.5x @ 85%): {kasa2.get_stats()} {'(STOPPED)' if not kasa2_active else ''}")
+    print(f"Kasa 3 (Dynamic @ 55%): {kasa3.get_stats()} {'(STOPPED)' if not kasa3_active else ''}")
+    print(f"Kasa 4 (Smart Kelly): {kasa4.get_stats()} {'(STOPPED)' if not kasa4_active else ''}")
     print("-" * 30)
     
     return {
         "Kasa1": kasa1,
         "Kasa2": kasa2,
-        "Kasa3": kasa3
+        "Kasa3": kasa3,
+        "Kasa4": kasa4
     }

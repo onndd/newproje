@@ -51,7 +51,7 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     """
     Trains LSTM models for P1.5 and P3 with NO DATA LEAKAGE.
     """
-    # 1. Split Data FIRST (Train/Val)
+    # 1. Split Data Chronologically FIRST
     # We need to reserve the last 15% for validation
     split_idx = int(len(values) * 0.85)
     
@@ -60,54 +60,26 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     
     # 2. Fit Scaler ONLY on Training Data
     scaler = MinMaxScaler(feature_range=(0, 1))
-    # Fit on train
     scaler.fit(train_values.reshape(-1, 1))
     
-    # Transform both
-    # Note: We need to handle the sequence generation carefully.
-    # For training sequences, we use train_values.
-    # For validation sequences, we need some overlap from train to start the first val sequence.
+    # Transform
+    train_scaled = scaler.transform(train_values.reshape(-1, 1))
+    val_scaled = scaler.transform(val_values.reshape(-1, 1))
     
-    # Let's scale the entire array now using the scaler fitted on TRAIN
-    values_scaled = scaler.transform(values.reshape(-1, 1))
+    # 3. Create Sequences Separately
+    # Train sequences: strictly from train data
+    X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, seq_length)
     
-    # 3. Create Sequences
-    # We create sequences from the FULL scaled array, then split again based on index
-    # This ensures continuity but we must be careful not to leak future info into scaler (which we avoided above)
-    
-    X = []
-    y_p15 = []
-    y_p3 = []
-    
-    # Targets are derived from raw values (to avoid scaling artifacts in classification logic)
-    # But we need to align indices.
-    
-    for i in range(seq_length, len(values)):
-        seq = values_scaled[i-seq_length:i]
-        X.append(seq)
+    # Validation sequences:
+    # We need the last 'seq_length' elements from train to start the first validation sequence
+    # Concatenate end of train with val
+    if len(train_scaled) >= seq_length:
+        val_input = np.concatenate([train_scaled[-seq_length:], val_scaled])
+    else:
+        # Fallback if train is too small (unlikely)
+        val_input = val_scaled
         
-        target = values[i]
-        y_p15.append(1 if target >= 1.5 else 0)
-        y_p3.append(1 if target >= 3.0 else 0)
-        
-    X = np.array(X)
-    y_p15 = np.array(y_p15)
-    y_p3 = np.array(y_p3)
-    
-    # 4. Split Sequences
-    # The split_idx for values corresponds to a specific index in X
-    # values index 'i' corresponds to X index 'i - seq_length'
-    # We want X_train to include sequences where the TARGET is in train_values
-    
-    # train_values ends at split_idx. So last target index is split_idx - 1.
-    # X index = (split_idx - 1) - seq_length
-    
-    # Let's just split X based on the ratio again, it's safer and easier
-    split_seq_idx = int(len(X) * 0.85)
-    
-    X_train, X_val = X[:split_seq_idx], X[split_seq_idx:]
-    y_p15_train, y_p15_val = y_p15[:split_seq_idx], y_p15[split_seq_idx:]
-    y_p3_train, y_p3_val = y_p3[:split_seq_idx], y_p3[split_seq_idx:]
+    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_input, seq_length)
     
     # Reshape for LSTM
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
