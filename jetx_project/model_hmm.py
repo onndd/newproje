@@ -73,6 +73,49 @@ def predict_hmm_state(model, values, state_map):
     
     return mapped_states
 
+def predict_hmm_states_causal(model, values, state_map, window_size=50):
+    """
+    Predicts HMM states causally using a rolling window.
+    For each time t, we predict using data [t-window_size : t+1].
+    This prevents future data leakage (Viterbi algorithm lookahead).
+    """
+    n = len(values)
+    causal_states = np.zeros(n, dtype=int)
+    
+    # Log transform all values once
+    values_log = np.log1p(values).reshape(-1, 1)
+    
+    print(f"Predicting HMM states causally (Window: {window_size})...")
+    
+    # For the first few items < window_size, we just predict on what we have
+    # For items >= window_size, we use the window
+    
+    # Optimization: We can't easily vectorize this because 'predict' is complex.
+    # We have to loop. 15k iterations is fine for training once.
+    
+    for i in range(n):
+        start_idx = max(0, i - window_size + 1)
+        # Slice up to i+1 (inclusive of i)
+        window = values_log[start_idx : i + 1]
+        
+        if len(window) < 1:
+            causal_states[i] = 0 # Default
+            continue
+            
+        # Predict on the window
+        # The last state in the sequence corresponds to time i
+        try:
+            hidden_states = model.predict(window)
+            last_state = hidden_states[-1]
+            causal_states[i] = state_map[last_state]
+        except:
+            causal_states[i] = 0 # Fallback
+            
+        if i % 1000 == 0 and i > 0:
+            print(f"Processed {i}/{n} samples...")
+            
+    return causal_states
+
 def save_hmm_model(model, state_map, output_dir='.'):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)

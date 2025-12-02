@@ -46,23 +46,45 @@ def create_pattern_vector(values, end_index, length=300):
     # Check if there is a big X in the window
     has_big_x = 1 if np.max(window) >= 10.0 else 0
     
-    # Streak Analysis for Pattern
-    # Simplified check for the window: Is there a long streak INSIDE this window?
-    # We can check the max streak length in this window.
-    max_red_streak = 0
-    max_green_streak = 0
-    curr_red = 0
-    curr_green = 0
+    # Vectorized Streak Analysis
+    # Find runs of Red (<1.5) and Green (>=1.5)
+    is_red = (window < 1.5)
     
-    for v in window:
-        if v < 1.5:
-            curr_red += 1
-            curr_green = 0
-            max_red_streak = max(max_red_streak, curr_red)
-        else:
-            curr_green += 1
-            curr_red = 0
-            max_green_streak = max(max_green_streak, curr_green)
+    # Find changes (where value != prev_value)
+    # We treat the first element as a change to start the first run
+    changes = np.concatenate(([True], is_red[1:] != is_red[:-1]))
+    
+    # Cumulative sum to assign IDs to runs
+    run_ids = np.cumsum(changes)
+    
+    # Count lengths of each run
+    # bincount works on non-negative integers
+    # run_ids starts at 1
+    run_lengths = np.bincount(run_ids)
+    # run_lengths[0] is count of 0s (unused), run_lengths[k] is length of run k
+    
+    # Get the value (Red or Green) for each run
+    # We can take the value at the start index of each run
+    run_starts = np.where(changes)[0]
+    run_values = is_red[run_starts] # True if Red, False if Green
+    
+    # Now find max streak for Red and Green
+    # run_lengths has an extra 0 at index 0, so we align
+    # run_ids goes from 1 to N. run_lengths size is N+1.
+    # valid run lengths are run_lengths[1:]
+    valid_lengths = run_lengths[1:]
+    
+    if len(valid_lengths) > 0:
+        # Mask for Red runs
+        red_runs = valid_lengths[run_values]
+        max_red_streak = np.max(red_runs) if len(red_runs) > 0 else 0
+        
+        # Mask for Green runs
+        green_runs = valid_lengths[~run_values]
+        max_green_streak = np.max(green_runs) if len(green_runs) > 0 else 0
+    else:
+        max_red_streak = 0
+        max_green_streak = 0
             
     has_long_red = 1 if max_red_streak >= 8 else 0
     has_long_green = 1 if max_green_streak >= 8 else 0
