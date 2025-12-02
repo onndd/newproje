@@ -71,15 +71,15 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, seq_length)
     
     # Validation sequences:
-    # We need the last 'seq_length' elements from train to start the first validation sequence
-    # Concatenate end of train with val
-    if len(train_scaled) >= seq_length:
-        val_input = np.concatenate([train_scaled[-seq_length:], val_scaled])
+    # STRICT MODE: Do not concatenate train end to val start.
+    # This avoids any potential boundary leakage or scaler artifact issues.
+    # We accept losing the first 'seq_length' samples of validation.
+    if len(val_scaled) > seq_length:
+        X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, seq_length)
     else:
-        # Fallback if train is too small (unlikely)
-        val_input = val_scaled
-        
-    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_input, seq_length)
+        # Not enough validation data, fallback to a slice of train (just for code stability)
+        print("Warning: Not enough validation data for sequence. Using last part of train.")
+        X_val, y_p15_val, y_p3_val, _ = create_sequences(train_scaled[-seq_length*2:], seq_length)
     
     # Reshape for LSTM
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
