@@ -71,16 +71,20 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, seq_length)
     
     # Validation sequences:
-    # To avoid ANY potential leakage from train_tail, we will strictly use val_scaled.
-    # We will lose the first 'seq_length' samples of validation, but this guarantees safety.
+    # FIX: To avoid losing the first 'seq_length' samples of validation (Context Loss),
+    # we need to prepend the last 'seq_length' samples of training data to validation data.
+    # This provides the necessary history for the first validation prediction.
     
-    if len(val_scaled) > seq_length:
-        X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, seq_length)
-    else:
-        print("Warning: Not enough validation data! Using last part of train as validation (suboptimal).")
-        # Fallback: Use last 20% of train
-        fallback_len = int(len(train_scaled) * 0.2)
-        X_val, y_p15_val, y_p3_val, _ = create_sequences(train_scaled[-fallback_len:], seq_length)
+    # Get context from raw values (to be safe with scaling)
+    context_values = train_values[-seq_length:]
+    val_values_with_context = np.concatenate([context_values, val_values])
+    
+    # Scale the combined validation data using the SAME scaler fitted on train
+    val_scaled_with_context = scaler.transform(val_values_with_context.reshape(-1, 1))
+    
+    # Create sequences
+    # Now X_val will start predicting for the first element of original val_values
+    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled_with_context, seq_length)
     
     # Reshape for LSTM
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))

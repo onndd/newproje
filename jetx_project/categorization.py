@@ -1,41 +1,51 @@
-
+import numpy as np
 from .config import SET1_RANGES, SET2_RANGES, SET3_RANGES, SET4_RANGES, SET5_RANGES, SET6_RANGES
 
-def get_category_id(value, ranges):
+# Pre-compute bins for vectorized operations
+# We take the lower bound of each range.
+_SET1_BINS = np.array([r[0] for r in SET1_RANGES])
+_SET2_BINS = np.array([r[0] for r in SET2_RANGES])
+_SET3_BINS = np.array([r[0] for r in SET3_RANGES])
+_SET4_BINS = np.array([r[0] for r in SET4_RANGES])
+_SET5_BINS = np.array([r[0] for r in SET5_RANGES])
+_SET6_BINS = np.array([r[0] for r in SET6_RANGES])
+
+def get_ids(values, bins):
     """
-    Generic function to find the category ID for a given value.
-    Returns 1-based index of the matching range.
-    Uses INCLUSIVE logic: low <= value <= high
+    Vectorized category ID retrieval.
     """
-    for i, (low, high) in enumerate(ranges):
-        if low <= value <= high:
-            return i + 1
+    ids = np.digitize(values, bins)
     
-    if value < ranges[0][0]:
-        return 1
+    # Handle values smaller than the first bin (return 1)
+    if isinstance(ids, np.ndarray):
+        ids[ids == 0] = 1
+    elif ids == 0:
+        ids = 1
         
-    return len(ranges)
+    return ids
 
-def get_set1_id(value):
-    """Returns Set1 category ID"""
-    return get_category_id(value, SET1_RANGES)
+def get_set1_ids(values):
+    return get_ids(values, _SET1_BINS)
 
-def get_set2_id(value):
-    """Returns Set2 category ID"""
-    return get_category_id(value, SET2_RANGES)
+def get_set2_ids(values):
+    return get_ids(values, _SET2_BINS)
 
-def get_set3_id(value):
-    """Returns Set3 category ID"""
-    return get_category_id(value, SET3_RANGES)
+def get_set3_ids(values):
+    return get_ids(values, _SET3_BINS)
 
-def get_set4_id(value):
-    """Returns Set4 category ID (Ultra-Fine)"""
-    return get_category_id(value, SET4_RANGES)
+def get_set4_ids(values):
+    return get_ids(values, _SET4_BINS)
 
-def get_set5_id(value):
-    """Returns Set5 category ID (Medium-Fine)"""
-    return get_category_id(value, SET5_RANGES)
+def get_set5_ids(values):
+    return get_ids(values, _SET5_BINS)
 
-def get_set6_id(value):
-    """Returns Set6 category ID (Coarse)"""
-    return get_category_id(value, SET6_RANGES)
+def get_set6_ids(values):
+    return get_ids(values, _SET6_BINS)
+
+# Legacy support (Singular) - Wraps vectorized version
+def get_set1_id(value): return int(get_set1_ids(value))
+def get_set2_id(value): return int(get_set2_ids(value))
+def get_set3_id(value): return int(get_set3_ids(value))
+def get_set4_id(value): return int(get_set4_ids(value))
+def get_set5_id(value): return int(get_set5_ids(value))
+def get_set6_id(value): return int(get_set6_ids(value))

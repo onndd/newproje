@@ -106,7 +106,8 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.5)
         if kasa1_active and p_1_5 >= 0.75:
             bet = 10
             target = 1.5
-            if true_val > target:
+            # SLIPPAGE: We require true_val to be at least target + 0.01 to guarantee a win
+            if true_val >= target + 0.01:
                 profit = bet * (target - 1)
             else:
                 profit = -bet
@@ -148,6 +149,9 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.5)
             q = 1 - p
             
             kelly_fraction = (b * p - q) / b
+            
+            # Safety: Calibration Factor (0.95) to reduce overconfidence
+            kelly_fraction *= 0.95
             
             # Safety: Cap Kelly at 5% of bankroll
             bet_fraction = min(max(kelly_fraction, 0), 0.05)

@@ -81,6 +81,15 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     preds_p15 = model_p15.predict(X_val)
     acc_p15 = accuracy_score(y_p15_val, preds_p15)
     print(f"Validation Accuracy (P1.5): {acc_p15:.4f}")
+    
+    # Feature Importance Analysis
+    print("\nTop 10 Features (P1.5):")
+    feature_importance = model_p15.get_feature_importance()
+    feature_names = X_train.columns
+    sorted_idx = np.argsort(feature_importance)[::-1]
+    for i in range(min(10, len(feature_names))):
+        idx = sorted_idx[i]
+        print(f"{feature_names[idx]}: {feature_importance[idx]:.4f}")
 
     # 2. Model P3 (Classifier)
     print("\n--- Training Model A (P3.0) ---")

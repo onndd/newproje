@@ -80,22 +80,24 @@ def extract_features_batch(df):
     values = df['value'].astype(float)
     
     # 1. Rolling Window Features (Set Ratios)
+    new_features = {}
+    
     for w in WINDOWS:
         # Set 1 (1.00 - 1.49)
         s1 = (values >= 1.00) & (values <= 1.49)
-        df[f'w{w}_set1_ratio'] = s1.rolling(w).mean().shift(1)
+        new_features[f'w{w}_set1_ratio'] = s1.rolling(w).mean().shift(1)
         
         # Set 4 (1.00 - 1.19)
         s4 = (values >= 1.00) & (values <= 1.19)
-        df[f'w{w}_set4_danger_ratio'] = s4.rolling(w).mean().shift(1)
+        new_features[f'w{w}_set4_danger_ratio'] = s4.rolling(w).mean().shift(1)
         
         # Set 5 (1.50 - 1.99)
         s5 = (values >= 1.50) & (values <= 1.99)
-        df[f'w{w}_set5_safe_ratio'] = s5.rolling(w).mean().shift(1)
+        new_features[f'w{w}_set5_safe_ratio'] = s5.rolling(w).mean().shift(1)
         
         # Set 6 (>= 2.00)
         s6 = (values >= 2.00)
-        df[f'w{w}_set6_high_ratio'] = s6.rolling(w).mean().shift(1)
+        new_features[f'w{w}_set6_high_ratio'] = s6.rolling(w).mean().shift(1)
         
         # Streaks (Vectorized "Games Since")
         # Current Streak Under 2.0 = Games since last >= 2.0
@@ -114,49 +116,49 @@ def extract_features_batch(df):
         # 2. Create an array of indices where mask is True
         # We use ffill on indices
         last_break_idx_u = pd.Series(np.where(mask_u, df.index, np.nan), index=df.index).ffill().shift(1)
-        df[f'w{w}_current_streak_under_2'] = df.index - last_break_idx_u
+        new_features[f'w{w}_current_streak_under_2'] = df.index - last_break_idx_u
         # Fill NaNs (start of data) with index (assumes streak started at 0)
-        df[f'w{w}_current_streak_under_2'] = df[f'w{w}_current_streak_under_2'].fillna(df.index.to_series())
+        new_features[f'w{w}_current_streak_under_2'] = new_features[f'w{w}_current_streak_under_2'].fillna(df.index.to_series())
         
         # Over 2.0 Streak (Reset when val < 2.0)
         mask_o = (values < 2.0)
         last_break_idx_o = pd.Series(np.where(mask_o, df.index, np.nan), index=df.index).ffill().shift(1)
-        df[f'w{w}_current_streak_over_2'] = df.index - last_break_idx_o
-        df[f'w{w}_current_streak_over_2'] = df[f'w{w}_current_streak_over_2'].fillna(df.index.to_series())
+        new_features[f'w{w}_current_streak_over_2'] = df.index - last_break_idx_o
+        new_features[f'w{w}_current_streak_over_2'] = new_features[f'w{w}_current_streak_over_2'].fillna(df.index.to_series())
 
     # 2. Raw Lags (Vectorized)
     lag_max = 200
     # Create all lag columns at once
-    shifts = {f'raw_lag_{i}': values.shift(i) for i in range(1, lag_max + 1)}
-    df = pd.concat([df, pd.DataFrame(shifts, index=df.index)], axis=1)
+    for i in range(1, lag_max + 1):
+        new_features[f'raw_lag_{i}'] = values.shift(i)
 
     # 3. RTP Balance (Vectorized)
     # (Value - 0.97) rolling sum
-    df['rtp_balance_500'] = (values - 0.97).rolling(500).sum().shift(1)
+    new_features['rtp_balance_500'] = (values - 0.97).rolling(500).sum().shift(1)
     
     # 4. Volatility & Chop (Vectorized)
     vol_w = 20
-    df['volatility_last_20'] = values.rolling(vol_w).std().shift(1)
+    new_features['volatility_last_20'] = values.rolling(vol_w).std().shift(1)
     
     # Chop Index: Sum of absolute diffs of binary color / window size
     is_green = (values >= 1.5).astype(int)
     changes = is_green.diff().abs()
-    df['chop_index_20'] = changes.rolling(vol_w).sum().shift(1) / vol_w
+    new_features['chop_index_20'] = changes.rolling(vol_w).sum().shift(1) / vol_w
     
     # 5. Shockwave (Games Since Big X)
     # Break condition: val >= 10.0
     mask_big = (values >= 10.0)
-    last_big_idx = pd.Series(np.where(mask_big, df.index, np.nan), index=df.index).ffill().shift(1)
-    df['games_since_big_x'] = df.index - last_big_idx
-    df['games_since_big_x'] = df['games_since_big_x'].fillna(200) # Default cap
+    last_big_idx = pd.Series(np.where(mask_big, df.index, np.nan), index=df.index).ffill().shift(1) # SAFETY: shift(1) prevents look-ahead
+    new_features['games_since_big_x'] = df.index - last_big_idx
+    new_features['games_since_big_x'] = new_features['games_since_big_x'].fillna(200) # Default cap
     
     # Last Big X Value
     # We can map the index back to value
     # df['last_big_x_val'] = df['value'].loc[last_big_idx].values # This is tricky with NaNs
     # Easier: ffill the value where mask is true
-    df['last_big_x_val'] = values.where(mask_big).ffill().shift(1).fillna(0.0)
+    new_features['last_big_x_val'] = values.where(mask_big).ffill().shift(1).fillna(0.0)
     
-    df['is_aftershock'] = (df['games_since_big_x'] <= 50).astype(float)
+    new_features['is_aftershock'] = (new_features['games_since_big_x'] <= 50).astype(float)
     
     # 6. Long Streak (>=8) Analysis (Vectorized)
     # We need to find the end index of the last streak >= 8.
@@ -206,8 +208,8 @@ def extract_features_batch(df):
     # Now find distance to last True in long_streak_end_mask
     last_long_streak_end_idx = pd.Series(np.where(long_streak_end_mask, df.index, np.nan), index=df.index).ffill().shift(1)
     
-    df['games_since_long_streak'] = df.index - last_long_streak_end_idx
-    df['games_since_long_streak'] = df['games_since_long_streak'].fillna(200.0)
+    new_features['games_since_long_streak'] = df.index - last_long_streak_end_idx
+    new_features['games_since_long_streak'] = new_features['games_since_long_streak'].fillna(200.0)
     
     # Type and Length of that last streak
     # We can fetch values using the index
@@ -218,18 +220,18 @@ def extract_features_batch(df):
     streak_lens = run_lengths.where(long_streak_end_mask)
     
     # Propagate these values forward
-    df['last_long_streak_type'] = streak_types.ffill().shift(1).fillna(0.0)
-    df['last_long_streak_len'] = streak_lens.ffill().shift(1).fillna(0.0)
+    new_features['last_long_streak_type'] = streak_types.ffill().shift(1).fillna(0.0)
+    new_features['last_long_streak_len'] = streak_lens.ffill().shift(1).fillna(0.0)
     
     # 7. Medium Win Streak
     # Games since NOT (1.5 <= val <= 3.0)
     mask_not_med = ~((values >= 1.50) & (values <= 3.00))
     last_not_med_idx = pd.Series(np.where(mask_not_med, df.index, np.nan), index=df.index).ffill().shift(1)
-    df['medium_win_streak'] = df.index - last_not_med_idx
-    df['medium_win_streak'] = df['medium_win_streak'].fillna(0.0)
+    new_features['medium_win_streak'] = df.index - last_not_med_idx
+    new_features['medium_win_streak'] = new_features['medium_win_streak'].fillna(0.0)
     
-    # Drop NaNs created by shifting/rolling (first 500 rows will be lost)
-    # But we want to keep index alignment.
-    # We will return the whole DF, caller handles dropping.
+    # Concatenate all new features at once (Optimized)
+    df_new = pd.DataFrame(new_features, index=df.index)
+    df = pd.concat([df, df_new], axis=1)
     
     return df

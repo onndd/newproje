@@ -29,13 +29,15 @@ def create_pattern_vector(values, end_index, length=300):
     # Normalized by log1p(1000) approx 6.9 to keep range roughly 0-1.
     norm_window = np.log1p(window) / np.log1p(1000.0)
     
-    # 2. Categorical IDs
-    s1 = [get_set1_id(v) for v in window]
-    s2 = [get_set2_id(v) for v in window]
-    s3 = [get_set3_id(v) for v in window]
-    s4 = [get_set4_id(v) for v in window]
-    s5 = [get_set5_id(v) for v in window]
-    s6 = [get_set6_id(v) for v in window]
+    # 2. Categorical IDs (Vectorized)
+    from .categorization import get_set1_ids, get_set2_ids, get_set3_ids, get_set4_ids, get_set5_ids, get_set6_ids
+    
+    s1 = get_set1_ids(window)
+    s2 = get_set2_ids(window)
+    s3 = get_set3_ids(window)
+    s4 = get_set4_ids(window)
+    s5 = get_set5_ids(window)
+    s6 = get_set6_ids(window)
     
     # 3. Psychological Features (Scalar)
     # We need to calculate them on the fly for the pattern
