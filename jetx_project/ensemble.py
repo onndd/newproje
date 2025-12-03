@@ -39,25 +39,31 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     # Calculate 1.00x Frequency (Last 50 games)
     bust_freq = np.zeros(n_samples)
     if values is not None:
-        # values should be aligned such that values[i] is the game result at time i.
-        # We want frequency of 1.00x in [i-50 : i]
-        # Vectorized calculation
-        is_bust = (values <= 1.01).astype(int) # 1.00 or 1.01
-        # Rolling sum
-        # We need pandas for easy rolling, or convolution
+        # Optimization: If we only need predictions for the last 'n_samples', 
+        # and 'values' is huge (history), we don't need to roll over the entire history.
+        # We need at least 50 (window) + n_samples (targets) + 1 (shift buffer)
+        needed_len = n_samples + 55
+        
+        if len(values) > needed_len:
+            # Slice to keep only relevant history
+            values_slice = values[-needed_len:]
+        else:
+            values_slice = values
+            
+        # Vectorized calculation on slice
+        is_bust = (values_slice <= 1.01).astype(int)
+        
         import pandas as pd
         s_bust = pd.Series(is_bust)
         # shift(1) because we want past 50 games BEFORE current prediction
-        bust_freq = s_bust.rolling(50).mean().shift(1).fillna(0).values
+        bust_freq_slice = s_bust.rolling(50).mean().shift(1).fillna(0).values
         
-        # We need to slice bust_freq to match n_samples
-        # Assuming values corresponds to the same timeline as preds
-        if len(bust_freq) > n_samples:
-            # Take the last n_samples
-            bust_freq = bust_freq[-n_samples:]
-        elif len(bust_freq) < n_samples:
-            # Pad with 0
-            bust_freq = np.pad(bust_freq, (n_samples - len(bust_freq), 0), 'constant')
+        # Take the last n_samples
+        if len(bust_freq_slice) >= n_samples:
+            bust_freq = bust_freq_slice[-n_samples:]
+        else:
+            # Should not happen if logic is correct, but fallback
+             bust_freq = np.pad(bust_freq_slice, (n_samples - len(bust_freq_slice), 0), 'constant')
             
     # Handle Transformer Predictions
     if preds_transformer is None:

@@ -34,26 +34,42 @@ st.set_page_config(page_title="JetX Predictor", layout="wide")
 st.title("JetX AI Prediction System (Ensemble Powered)")
 
 # Load Models
+# Load Models
 @st.cache_resource
 def load_all_models():
     try:
-        # Load all individual models
-        ma_p15, ma_p3, ma_x = load_models('.')
-        mb_nbrs, mb_pca, mb_pats, mb_targs = load_memory('.')
-        mc_p15, mc_p3, mc_scaler = load_lstm_models('.')
-        md_p15, md_p3 = load_lightgbm_models('.')
-        me_p15, me_p3, me_cols = load_mlp_models('.')
-        # Updated to load bins for CategoricalHMM
-        hmm_model, hmm_map, hmm_bins = load_hmm_model('.')
-        meta_model, meta_scaler = load_meta_learner('.')
+        models = {}
         
-        return (ma_p15, ma_p3, ma_x, 
-                mb_nbrs, mb_pca, mb_targs, 
-                mc_p15, mc_p3, mc_scaler,
-                md_p15, md_p3,
-                me_p15, me_p3, me_cols,
-                hmm_model, hmm_map, hmm_bins,
-                meta_model, meta_scaler)
+        # Load all individual models
+        # Model A
+        ma_p15, ma_p3, ma_x = load_models('.')
+        models['model_a'] = {'p15': ma_p15, 'p3': ma_p3, 'x': ma_x} if ma_p15 else None
+        
+        # Model B
+        mb_nbrs, mb_pca, mb_pats, mb_targs = load_memory('.')
+        models['model_b'] = {'nbrs': mb_nbrs, 'pca': mb_pca, 'targs': mb_targs} if mb_nbrs else None
+        
+        # Model C
+        mc_p15, mc_p3, mc_scaler = load_lstm_models('.')
+        models['model_c'] = {'p15': mc_p15, 'p3': mc_p3, 'scaler': mc_scaler} if mc_p15 else None
+        
+        # Model D
+        md_p15, md_p3 = load_lightgbm_models('.')
+        models['model_d'] = {'p15': md_p15, 'p3': md_p3} if md_p15 else None
+        
+        # Model E
+        me_p15, me_p3, me_cols = load_mlp_models('.')
+        models['model_e'] = {'p15': me_p15, 'p3': me_p3, 'cols': me_cols} if me_p15 else None
+        
+        # HMM
+        hmm_model, hmm_map, hmm_bins = load_hmm_model('.')
+        models['hmm'] = {'model': hmm_model, 'map': hmm_map, 'bins': hmm_bins} if hmm_model else None
+        
+        # Meta Learner
+        meta_model, meta_scaler = load_meta_learner('.')
+        models['meta'] = {'model': meta_model, 'scaler': meta_scaler} if meta_model else None
+        
+        return models
     except Exception as e:
         st.error(f"Error loading models: {e}")
         return None
@@ -61,18 +77,7 @@ def load_all_models():
 models = load_all_models()
 
 if models is not None:
-    try:
-        (ma_p15, ma_p3, ma_x, 
-         mb_nbrs, mb_pca, mb_targs, 
-         mc_p15, mc_p3, mc_scaler,
-         md_p15, md_p3,
-         me_p15, me_p3, me_cols,
-         hmm_model, hmm_map, hmm_bins,
-         meta_model, meta_scaler) = models
-        st.success("All Models & Ensemble Loaded Successfully!")
-    except ValueError as e:
-        st.error(f"Model Unpacking Error: {e}. Check if all models are trained and loaded correctly.")
-        st.stop()
+    st.success("Models Loaded (Dictionary Mode)")
 else:
     st.warning("Please train models first using the Orchestrator.")
     st.stop()
@@ -97,11 +102,20 @@ if 'history' not in st.session_state:
 new_val = st.number_input("Enter Last Result (X):", min_value=1.00, max_value=100000.0, step=0.01, format="%.2f")
 
 if st.button("Add Result & Predict"):
-    # 1. Save to DB (Persistence)
-    save_to_db(new_val)
-    
-    # 2. Update Session State
-    st.session_state.history.append(new_val)
+    # 1. Save to DB (Persistence) - CRITICAL FIX: Only update RAM if DB save succeeds
+    try:
+        save_to_db(new_val)
+        
+        # 2. Update Session State
+        st.session_state.history.append(new_val)
+        
+        # Memory Leak Fix: Limit history size
+        if len(st.session_state.history) > 10000:
+            st.session_state.history.pop(0)
+            
+    except Exception as e:
+        st.error(f"CRITICAL: Failed to save to DB. RAM not updated to ensure consistency. Error: {e}")
+        st.stop()
     
     history_arr = np.array(st.session_state.history)
     current_idx = len(history_arr) - 1
@@ -123,21 +137,29 @@ if st.button("Add Result & Predict"):
             feats_df = pd.DataFrame([feats])
             
             # Model A
-            probs['A'] = ma_p15.predict_proba(feats_df)[0][1]
+            if models.get('model_a'):
+                probs['A'] = models['model_a']['p15'].predict_proba(feats_df)[0][1]
             
             # Model D
-            probs['D'] = md_p15.predict_proba(feats_df)[0][1]
+            if models.get('model_d'):
+                probs['D'] = models['model_d']['p15'].predict_proba(feats_df)[0][1]
             
             # Model E
-            feats_mlp = feats_df[me_cols]
-            probs['E'] = me_p15.predict_proba(feats_mlp)[0][1]
+            if models.get('model_e'):
+                me_cols = models['model_e']['cols']
+                feats_mlp = feats_df[me_cols]
+                probs['E'] = models['model_e']['p15'].predict_proba(feats_mlp)[0][1]
             
         except Exception as e:
             st.error(f"Feature Extraction Error: {e}")
 
     # --- Pattern Recognition (Model B) ---
-    if len(history_arr) >= 300:
+    if len(history_arr) >= 300 and models.get('model_b'):
         try:
+            mb_nbrs = models['model_b']['nbrs']
+            mb_pca = models['model_b']['pca']
+            mb_targs = models['model_b']['targs']
+            
             pat = create_pattern_vector(history_arr, current_idx)
             if pat is not None:
                 pat_reshaped = pat.reshape(1, -1)
@@ -146,8 +168,11 @@ if st.button("Add Result & Predict"):
             st.error(f"Model B Error: {e}")
             
     # --- LSTM (Model C) ---
-    if len(history_arr) >= 200:
+    if len(history_arr) >= 200 and models.get('model_c'):
         try:
+            mc_p15 = models['model_c']['p15']
+            mc_scaler = models['model_c']['scaler']
+            
             seq_len = 200
             # Get last seq_len values
             last_seq = history_arr[-seq_len:]
@@ -174,8 +199,16 @@ if st.button("Add Result & Predict"):
             
         # Use CategoricalHMM prediction
         from jetx_project.model_hmm import predict_categorical_hmm_states
-        hmm_states = predict_categorical_hmm_states(hmm_model, hmm_input, hmm_map, bins=hmm_bins)
-        current_state = hmm_states[-1]
+        
+        if models.get('hmm'):
+            hmm_model = models['hmm']['model']
+            hmm_map = models['hmm']['map']
+            hmm_bins = models['hmm']['bins']
+            hmm_states = predict_categorical_hmm_states(hmm_model, hmm_input, hmm_map, bins=hmm_bins)
+            current_state = hmm_states[-1]
+        else:
+            current_state = 1 # Default
+            
     except Exception as e:
         st.error(f"HMM Error: {e}")
         current_state = 1 # Default to Normal
@@ -195,7 +228,11 @@ if st.button("Add Result & Predict"):
         values=history_arr # Pass raw values for 1.00x frequency feature
     )
     
-    final_prob = predict_meta(meta_model, meta_scaler, meta_X)[0]
+    if models.get('meta'):
+        final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
+    else:
+        # Simple average if meta learner missing
+        final_prob = np.mean(list(probs.values()))
     
     # --- Display Results ---
     col1, col2, col3 = st.columns(3)

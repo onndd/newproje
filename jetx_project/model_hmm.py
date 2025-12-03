@@ -128,7 +128,16 @@ def save_hmm_model(model, state_map, bins=None, output_dir='.'):
     print(f"HMM model saved to {output_dir}")
 
 def load_hmm_model(model_dir='.'):
-    data = joblib.load(os.path.join(model_dir, 'model_hmm.pkl'))
+    path = os.path.join(model_dir, 'model_hmm.pkl')
+    if not os.path.exists(path):
+        return None, None, None
+        
+    data = joblib.load(path)
+    # Support both old format (tuple) and new format (dict)
+    if isinstance(data, tuple):
+        # Old format: (model, map)
+        return data[0], data[1], None
+        
     return data['model'], data['map'], data.get('bins', None)
 
 def train_categorical_hmm(values, n_components=3, n_bins=5):
