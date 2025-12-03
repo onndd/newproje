@@ -39,7 +39,7 @@ class Bankroll:
             "Profit": self.balance - self.history[0]
         }
 
-def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.5):
+def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3, fractional_kelly=0.5):
     """
     Runs the simulation for 3 strategies based on predictions.
     
@@ -152,6 +152,9 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.5)
             
             # Safety: Calibration Factor (0.95) to reduce overconfidence
             kelly_fraction *= 0.95
+            
+            # Safety: Fractional Kelly (User defined, default 0.5)
+            kelly_fraction *= fractional_kelly
             
             # Safety: Cap Kelly at 5% of bankroll
             bet_fraction = min(max(kelly_fraction, 0), 0.05)

@@ -26,9 +26,9 @@ def train_hmm_model(values, n_components=3):
 
     values_log = np.log1p(values_filtered).reshape(-1, 1)
     
-    # GMMHMM with 3 components per state allows for more flexible density modeling
+    # GMMHMM with 5 components per state allows for more flexible density modeling
     # e.g. a state can have a "peak" and a "tail"
-    model = hmm.GMMHMM(n_components=n_components, n_mix=3, covariance_type="full", n_iter=100, random_state=42)
+    model = hmm.GMMHMM(n_components=n_components, n_mix=5, covariance_type="full", n_iter=100, random_state=42)
     model.fit(values_log)
     
     # Analyze states to map them to Cold/Normal/Hot

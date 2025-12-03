@@ -4,9 +4,10 @@ import os
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_states):
+def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_states, values=None):
     """
     Combines predictions from all models into a single feature matrix for the meta-learner.
+    Includes 'Recent 1.00x Frequency' feature if values are provided.
     
     Args:
         preds_a: Predictions from Model A (CatBoost)
@@ -15,57 +16,14 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         preds_d: Predictions from Model D (LightGBM)
         preds_e: Predictions from Model E (MLP)
         hmm_states: HMM States (Categorical)
+        values: Raw game values (optional, required for 1.00x frequency feature)
         
     Returns:
         meta_features: Numpy array of shape (n_samples, n_features)
     """
-    # Ensure all inputs are numpy arrays and have same length
     n_samples = len(preds_a)
     
     # One-Hot Encode HMM States (Assuming 3 states: 0, 1, 2)
-    hmm_onehot = np.zeros((n_samples, 3))
-    for i in range(n_samples):
-        state = int(hmm_states[i])
-        if 0 <= state < 3:
-            hmm_onehot[i, state] = 1
-            
-    # Stack features
-    # We use probabilities from each model + HMM context
-    
-    # NEW: Add "Recent 1.00x Frequency" (Instant Bust Risk)
-    # We need to calculate this from raw values if provided, or pass it in.
-    # To keep signature simple, let's assume 'values' is passed or we calculate it outside.
-    # Actually, changing signature might break callers.
-    # Let's add 'recent_busts' as an argument.
-    
-    # Wait, I need to update the signature in the definition.
-    # But I can't see the caller here. The caller is in the notebook.
-    # I will update the signature to accept 'recent_busts' (optional for backward compat, but we will use it).
-    
-    # Let's assume 'recent_busts' is passed.
-    # If not passed, we use 0.
-    
-    meta_features_list = [
-        preds_a,
-        preds_b,
-        preds_c,
-        preds_d,
-        preds_e,
-        hmm_onehot
-    ]
-    
-    # Check if we have extra args (hacky but effective without changing all signatures immediately)
-    # Better: Update signature.
-    
-    return np.column_stack(meta_features_list)
-
-def prepare_meta_features_v2(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_states, values=None):
-    """
-    Enhanced version with 1.00x frequency feature.
-    """
-    n_samples = len(preds_a)
-    
-    # One-Hot Encode HMM
     hmm_onehot = np.zeros((n_samples, 3))
     for i in range(n_samples):
         state = int(hmm_states[i])
