@@ -4,10 +4,13 @@ import os
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 
-def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_states, values=None):
+from .model_anomaly import check_anomaly
+
+def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_states, values=None, preds_transformer=None):
     """
     Combines predictions from all models into a single feature matrix for the meta-learner.
     Includes 'Recent 1.00x Frequency' feature if values are provided.
+    Includes Transformer predictions if provided.
     
     Args:
         preds_a: Predictions from Model A (CatBoost)
@@ -17,6 +20,7 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         preds_e: Predictions from Model E (MLP)
         hmm_states: HMM States (Categorical)
         values: Raw game values (optional, required for 1.00x frequency feature)
+        preds_transformer: Predictions from Transformer (optional)
         
     Returns:
         meta_features: Numpy array of shape (n_samples, n_features)
@@ -55,12 +59,22 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
             # Pad with 0
             bust_freq = np.pad(bust_freq, (n_samples - len(bust_freq), 0), 'constant')
             
+    # Handle Transformer Predictions
+    if preds_transformer is None:
+        # If not provided, assume 0.5 (neutral) or 0? 
+        # If the model was trained WITH transformer, this must be provided.
+        # If trained WITHOUT, this column shouldn't exist.
+        # For backward compatibility, let's assume we are moving to a new version where it exists.
+        # We'll fill with 0.5 if missing, but ideally it should be passed.
+        preds_transformer = np.full(n_samples, 0.5)
+        
     meta_features = np.column_stack([
         preds_a,
         preds_b,
         preds_c,
         preds_d,
         preds_e,
+        preds_transformer, # Added Transformer
         hmm_onehot,
         bust_freq
     ])
@@ -98,3 +112,18 @@ def predict_meta(model, scaler, meta_features):
     """
     meta_features_scaled = scaler.transform(meta_features)
     return model.predict_proba(meta_features_scaled)[:, 1]
+
+def predict_meta_safe(model, scaler, meta_features, anomaly_model=None, current_window_values=None):
+    """
+    Predicts using Meta-Learner with Circuit Breaker (Anomaly Detection).
+    """
+    # 1. Check Anomaly (Circuit Breaker)
+    if anomaly_model is not None and current_window_values is not None:
+        score, _ = check_anomaly(anomaly_model, current_window_values)
+        if score == -1:
+            print("CIRCUIT BREAKER: Anomaly Detected! Betting suspended.")
+            # Return 0 probability to prevent betting
+            return np.zeros(len(meta_features))
+            
+    # 2. Normal Prediction
+    return predict_meta(model, scaler, meta_features)

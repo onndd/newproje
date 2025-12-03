@@ -10,3 +10,6 @@ seaborn
 joblib
 streamlit
 optuna
+stable-baselines3
+shimmy
+gymnasium
