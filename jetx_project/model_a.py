@@ -97,16 +97,17 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     print("\n--- Training Model A (P3.0) ---")
     y_p3_t, y_p3_val = y_p3_train[:split_idx], y_p3_train[split_idx:]
     # Optimized parameters (Manual tuning to prevent overfitting)
+    # Optimized parameters (Manual tuning to prevent overfitting)
     params = {
-        'iterations': 2000,
-        'learning_rate': 0.005, # Slower learning
-        'depth': 6, # Reduced from 10 to 6
-        'l2_leaf_reg': 9, # Increased regularization
+        'iterations': 3000, # Increased iterations
+        'learning_rate': 0.01, # Slower learning
+        'depth': 8, # Deeper trees (was 6)
+        'l2_leaf_reg': 5, # Moderate regularization
         'loss_function': 'Logloss',
         'eval_metric': 'Accuracy',
         'random_seed': 42,
         'verbose': 100,
-        'early_stopping_rounds': 100
+        'early_stopping_rounds': 200 # More patience
     }
     model_p3 = CatBoostClassifier(**params)
     model_p3.fit(X_t, y_p3_t, eval_set=(X_val, y_p3_val))

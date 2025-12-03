@@ -214,7 +214,28 @@ def predict_categorical_hmm_states_causal(model, values, state_map, bins, window
     s_values = pd.Series(values)
     discretized = pd.cut(s_values, bins=bins, labels=False, include_lowest=True)
     discretized = discretized.fillna(len(bins)-2).astype(int)
+    # FIX: Manually define bins to ensure 1.50 is a boundary
+    # We want bins like: [0, 1.20, 1.50, 2.00, inf]
+    # This ensures that 1.49 falls in a different bin than 1.51
+    # Bins: [0, 1.20) -> Very Low
+    #       [1.20, 1.50) -> Low (Risk Zone)
+    #       [1.50, 2.00) -> Medium (Target Zone)
+    #       [2.00, 10.0) -> High
+    #       [10.0, inf) -> Very High
+    bins = [0, 1.20, 1.50, 2.00, 10.0, np.inf]
+    
+    # We use pd.cut directly instead of KBinsDiscretizer for precise control
+    s_values = pd.Series(values.ravel())
+    discretized = pd.cut(s_values, bins=bins, labels=False, include_lowest=True)
+    
+    # Handle NaNs if any (though unlikely with include_lowest=True)
+    discretized = discretized.fillna(0).astype(int)
+    
+    # Reshape for HMM
     X_discrete = discretized.values.reshape(-1, 1)
+    
+    # We don't need 'est' anymore, but to keep compatibility with return signature:
+    est = bins # Return bins instead of estimator
     
     print(f"Predicting Categorical HMM states causally (Window: {window_size})...")
     

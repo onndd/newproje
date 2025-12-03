@@ -75,7 +75,7 @@ def build_transformer_model(seq_length, num_heads=4, key_dim=32, ff_dim=64):
     model = Model(inputs=inputs, outputs=[output_p15, output_p3])
     model.compile(optimizer='adam', 
                   loss={'p15': 'binary_crossentropy', 'p3': 'binary_crossentropy'},
-                  metrics=['accuracy'])
+                  metrics={'p15': 'accuracy', 'p3': 'accuracy'})
     return model
 
 def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
