@@ -8,6 +8,30 @@ from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.preprocessing import MinMaxScaler
 import joblib
 
+class PositionalEncoding(tf.keras.layers.Layer):
+    def __init__(self, seq_length, d_model):
+        super(PositionalEncoding, self).__init__()
+        self.pos_encoding = self.positional_encoding(seq_length, d_model)
+
+    def get_angles(self, position, i, d_model):
+        angles = 1 / np.power(10000, (2 * (i // 2)) / np.float32(d_model))
+        return position * angles
+
+    def positional_encoding(self, position, d_model):
+        angle_rads = self.get_angles(
+            position=np.arange(position)[:, np.newaxis],
+            i=np.arange(d_model)[np.newaxis, :],
+            d_model=d_model
+        )
+        sines = np.sin(angle_rads[:, 0::2])
+        cosines = np.cos(angle_rads[:, 1::2])
+        pos_encoding = np.concatenate([sines, cosines], axis=-1)
+        pos_encoding = pos_encoding[np.newaxis, ...]
+        return tf.cast(pos_encoding, dtype=tf.float32)
+
+    def call(self, inputs):
+        return inputs + self.pos_encoding[:, :tf.shape(inputs)[1], :]
+
 def build_transformer_model(seq_length, num_heads=4, key_dim=32, ff_dim=64):
     """
     Builds a Transformer model for Time-Series forecasting.
@@ -15,16 +39,29 @@ def build_transformer_model(seq_length, num_heads=4, key_dim=32, ff_dim=64):
     """
     inputs = Input(shape=(seq_length, 1))
     
+    # Projection Layer (Dimension Mismatch Fix)
+    # Project 1D input to key_dim (e.g. 32) so Attention has depth to work with
+    x = Dense(key_dim)(inputs) 
+    
+    # Positional Encoding (Time Awareness Fix)
+    x = PositionalEncoding(seq_length, key_dim)(x)
+    
     # Multi-Head Attention
-    x = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(inputs, inputs)
-    x = Dropout(0.1)(x)
-    x = LayerNormalization(epsilon=1e-6)(x + inputs) # Residual connection
+    # Now inputs to attention have shape (batch, seq, key_dim)
+    attn_out = MultiHeadAttention(num_heads=num_heads, key_dim=key_dim)(x, x)
+    attn_out = Dropout(0.1)(attn_out)
+    
+    # Residual Connection 1
+    # x and attn_out now have same shape (batch, seq, key_dim)
+    x = LayerNormalization(epsilon=1e-6)(x + attn_out) 
     
     # Feed Forward Part
-    res = x + inputs # Skip connection
+    res = x # Skip connection
     x = Dense(ff_dim, activation="relu")(x)
     x = Dropout(0.1)(x)
-    x = Dense(1)(x) # Project back to feature dim
+    x = Dense(key_dim)(x) # Project back to key_dim
+    
+    # Residual Connection 2
     x = LayerNormalization(epsilon=1e-6)(x + res)
     
     # Global Average Pooling to flatten

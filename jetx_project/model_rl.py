@@ -56,12 +56,15 @@ class JetXEnv(gym.Env):
         past_10 = self.df.iloc[self.current_step-10 : self.current_step]['value']
         trend = past_10.mean()
         
+        # Log-Scale Trend (Fix Scaling Mismatch)
+        trend_log = np.log1p(trend)
+        
         obs = np.array([
             row['prob_1.5'],
             row.get('prob_3.0', 0.0), # Default to 0 if not present
             row['hmm_state'],
             self.balance / self.initial_balance,
-            trend
+            trend_log # Use log-scaled trend
         ], dtype=np.float32)
         
         return obs
@@ -137,17 +140,20 @@ def train_rl_agent(df_with_probs, output_dir='.'):
     
     return model
 
-def predict_action(model, prob_15, prob_30, hmm_state, balance, recent_trend):
+def predict_action(model, prob_15, prob_30, hmm_state, balance, recent_trend, initial_balance=1000.0):
     """
     Predicts action for a single state.
     """
+    # Log-Scale Trend
+    trend_log = np.log1p(recent_trend)
+    
     # Construct observation
     obs = np.array([
         prob_15,
         prob_30,
         hmm_state,
-        balance / 1000.0, # Normalize assuming initial is 1000
-        recent_trend
+        balance / initial_balance, # Dynamic Normalization
+        trend_log
     ], dtype=np.float32)
     
     action, _ = model.predict(obs, deterministic=True)

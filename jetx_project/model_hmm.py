@@ -201,7 +201,7 @@ def predict_categorical_hmm_states(model, values, state_map, bins):
     
     return mapped_states
 
-def predict_categorical_hmm_states_causal(model, values, state_map, bins, window_size=200):
+def predict_categorical_hmm_states_causal(model, values, state_map, bins, window_size=300):
     """
     Predicts CategoricalHMM states causally using a rolling window.
     Prevents look-ahead bias.

@@ -5,7 +5,7 @@ import joblib
 import os
 from sklearn.ensemble import IsolationForest
 
-def extract_anomaly_features(values, window_size=50):
+def extract_anomaly_features(values, window_size=300):
     """
     Extracts specific features for Anomaly Detection.
     Features:
