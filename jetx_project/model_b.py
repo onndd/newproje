@@ -310,7 +310,7 @@ def predict_model_b(nbrs, pca, memory_targets, current_pattern):
     
     return avg_p15, avg_p3, avg_val
 
-def evaluate_model_b(nbrs, memory_targets, test_values, start_index=0):
+def evaluate_model_b(nbrs, pca, memory_targets, test_values, start_index=0):
     """
     Evaluates Model B on a test set.
     """
@@ -329,7 +329,7 @@ def evaluate_model_b(nbrs, memory_targets, test_values, start_index=0):
         pat = create_pattern_vector(test_values, i)
         if pat is not None:
             # Predict
-            p15, p3, px = predict_model_b(nbrs, memory_targets, pat)
+            p15, p3, px = predict_model_b(nbrs, pca, memory_targets, pat)
             
             # True values
             true_val = test_values[i+1]

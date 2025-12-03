@@ -29,6 +29,8 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         state = int(hmm_states[i])
         if 0 <= state < 3:
             hmm_onehot[i, state] = 1
+        else:
+            print(f"Warning: Unknown HMM state {state} encountered. One-hot vector will be all zeros.")
             
     # Calculate 1.00x Frequency (Last 50 games)
     bust_freq = np.zeros(n_samples)

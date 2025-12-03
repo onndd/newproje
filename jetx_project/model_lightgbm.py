@@ -44,8 +44,22 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train):
     return clf_p15, clf_p3
 
 def save_lightgbm_models(model_p15, model_p3, output_dir='.'):
+    import joblib
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
-    model_p15.booster_.save_model(os.path.join(output_dir, 'modelD_p15.txt'))
-    model_p3.booster_.save_model(os.path.join(output_dir, 'modelD_p3.txt'))
+    joblib.dump(model_p15, os.path.join(output_dir, 'modelD_p15.pkl'))
+    joblib.dump(model_p3, os.path.join(output_dir, 'modelD_p3.pkl'))
     print(f"LightGBM models saved to {output_dir}")
+
+def load_lightgbm_models(model_dir='.'):
+    import joblib
+    p15_path = os.path.join(model_dir, 'modelD_p15.pkl')
+    p3_path = os.path.join(model_dir, 'modelD_p3.pkl')
+    
+    if not os.path.exists(p15_path) or not os.path.exists(p3_path):
+        return None, None
+        
+    model_p15 = joblib.load(p15_path)
+    model_p3 = joblib.load(p3_path)
+    
+    return model_p15, model_p3

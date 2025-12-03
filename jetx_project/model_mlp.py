@@ -44,4 +44,19 @@ def save_mlp_models(model_p15, model_p3, feature_cols, output_dir='.'):
         os.makedirs(output_dir)
     joblib.dump(model_p15, os.path.join(output_dir, 'modelE_p15.pkl'))
     joblib.dump(model_p3, os.path.join(output_dir, 'modelE_p3.pkl'))
+    joblib.dump(feature_cols, os.path.join(output_dir, 'modelE_cols.pkl'))
     print(f"MLP models saved to {output_dir}")
+
+def load_mlp_models(model_dir='.'):
+    p15_path = os.path.join(model_dir, 'modelE_p15.pkl')
+    p3_path = os.path.join(model_dir, 'modelE_p3.pkl')
+    cols_path = os.path.join(model_dir, 'modelE_cols.pkl')
+    
+    if not os.path.exists(p15_path) or not os.path.exists(p3_path) or not os.path.exists(cols_path):
+        return None, None, None
+        
+    model_p15 = joblib.load(p15_path)
+    model_p3 = joblib.load(p3_path)
+    feature_cols = joblib.load(cols_path)
+    
+    return model_p15, model_p3, feature_cols

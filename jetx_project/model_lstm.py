@@ -132,3 +132,19 @@ def save_lstm_models(model_p15, model_p3, scaler, output_dir='.'):
     model_p3.save(os.path.join(output_dir, 'modelC_p3.h5'))
     joblib.dump(scaler, os.path.join(output_dir, 'modelC_scaler.pkl'))
     print(f"LSTM models saved to {output_dir}")
+
+def load_lstm_models(model_dir='.'):
+    from tensorflow.keras.models import load_model
+    
+    p15_path = os.path.join(model_dir, 'modelC_p15.h5')
+    p3_path = os.path.join(model_dir, 'modelC_p3.h5')
+    scaler_path = os.path.join(model_dir, 'modelC_scaler.pkl')
+    
+    if not os.path.exists(p15_path) or not os.path.exists(p3_path) or not os.path.exists(scaler_path):
+        return None, None, None
+        
+    model_p15 = load_model(p15_path)
+    model_p3 = load_model(p3_path)
+    scaler = joblib.load(scaler_path)
+    
+    return model_p15, model_p3, scaler

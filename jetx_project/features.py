@@ -11,12 +11,13 @@ def extract_features(history_full: np.ndarray, current_index: int) -> Dict[str, 
     Optimized: Uses extract_features_batch on a small window.
     """
     # 1. Determine Window Size
-    # We need enough history for the largest window (500) + some buffer for rolling/shifting
-    # extract_features_batch uses rolling(500).shift(1).
-    # So we need at least 501 items to get a value at the end.
-    # To be safe, let's take 600.
+    # We need enough history for the largest window + some buffer for rolling/shifting
+    # extract_features_batch uses rolling(max_window).shift(1).
+    # So we need at least max_window + 1 items.
+    # To be safe, let's take max_window + 100.
     
-    needed_history = 600
+    max_window = max(WINDOWS)
+    needed_history = max_window + 100
     
     # 2. Slice History
     # We want the window ending at current_index (exclusive of current_index for the target, 
