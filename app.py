@@ -17,6 +17,17 @@ from jetx_project.model_lightgbm import load_lightgbm_models
 from jetx_project.model_mlp import load_mlp_models
 from jetx_project.model_hmm import load_hmm_model, predict_hmm_state
 from jetx_project.ensemble import load_meta_learner, prepare_meta_features, predict_meta
+import sqlite3
+
+def save_to_db(value):
+    """Saves the new result to the database."""
+    try:
+        with sqlite3.connect('jetx.db') as conn:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO jetx_results (value) VALUES (?)", (value,))
+            conn.commit()
+    except Exception as e:
+        st.error(f"Database Save Error: {e}")
 
 st.set_page_config(page_title="JetX Predictor", layout="wide")
 
@@ -49,15 +60,19 @@ def load_all_models():
 
 models = load_all_models()
 
-if models:
-    (ma_p15, ma_p3, ma_x, 
-     mb_nbrs, mb_pca, mb_targs, 
-     mc_p15, mc_p3, mc_scaler,
-     md_p15, md_p3,
-     me_p15, me_p3, me_cols,
-     hmm_model, hmm_map, hmm_bins,
-     meta_model, meta_scaler) = models
-    st.success("All Models & Ensemble Loaded Successfully!")
+if models is not None:
+    try:
+        (ma_p15, ma_p3, ma_x, 
+         mb_nbrs, mb_pca, mb_targs, 
+         mc_p15, mc_p3, mc_scaler,
+         md_p15, md_p3,
+         me_p15, me_p3, me_cols,
+         hmm_model, hmm_map, hmm_bins,
+         meta_model, meta_scaler) = models
+        st.success("All Models & Ensemble Loaded Successfully!")
+    except ValueError as e:
+        st.error(f"Model Unpacking Error: {e}. Check if all models are trained and loaded correctly.")
+        st.stop()
 else:
     st.warning("Please train models first using the Orchestrator.")
     st.stop()
@@ -82,6 +97,10 @@ if 'history' not in st.session_state:
 new_val = st.number_input("Enter Last Result (X):", min_value=1.00, max_value=100000.0, step=0.01, format="%.2f")
 
 if st.button("Add Result & Predict"):
+    # 1. Save to DB (Persistence)
+    save_to_db(new_val)
+    
+    # 2. Update Session State
     st.session_state.history.append(new_val)
     
     history_arr = np.array(st.session_state.history)

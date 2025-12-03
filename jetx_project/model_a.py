@@ -156,6 +156,8 @@ def load_models(model_dir='.'):
     Loads the trained models from disk.
     """
     model_p15 = CatBoostClassifier()
+    # Note: load_model should restore parameters saved during training.
+    # If version mismatch occurs, ensure environment matches training (catboost==1.2.8).
     model_p15.load_model(os.path.join(model_dir, 'modelA_p15'))
     
     model_p3 = CatBoostClassifier()
