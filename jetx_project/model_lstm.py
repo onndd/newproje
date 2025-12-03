@@ -89,17 +89,43 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
     X_val = X_val.reshape((X_val.shape[0], X_val.shape[1], 1))
     
+    # Compute Class Weights
+    from sklearn.utils.class_weight import compute_class_weight
+    
+    # P1.5 Weights
+    classes_p15 = np.unique(y_p15_train)
+    weights_p15 = compute_class_weight(class_weight='balanced', classes=classes_p15, y=y_p15_train)
+    class_weight_p15 = dict(zip(classes_p15, weights_p15))
+    print(f"P1.5 Class Weights: {class_weight_p15}")
+    
+    # P3.0 Weights
+    classes_p3 = np.unique(y_p3_train)
+    weights_p3 = compute_class_weight(class_weight='balanced', classes=classes_p3, y=y_p3_train)
+    class_weight_p3 = dict(zip(classes_p3, weights_p3))
+    print(f"P3.0 Class Weights: {class_weight_p3}")
+
     callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
+    
+    # Define Metrics
+    metrics = ['accuracy', tf.keras.metrics.Precision(name='precision'), tf.keras.metrics.Recall(name='recall')]
     
     print("Training LSTM (P1.5)...")
     model_p15 = build_lstm_model(seq_length)
+    # Re-compile to add new metrics
+    model_p15.compile(optimizer='adam', loss='binary_crossentropy', metrics=metrics)
+    
     model_p15.fit(X_train, y_p15_train, validation_data=(X_val, y_p15_val),
-                  epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1)
+                  epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1,
+                  class_weight=class_weight_p15)
                   
     print("Training LSTM (P3.0)...")
     model_p3 = build_lstm_model(seq_length)
+    # Re-compile to add new metrics
+    model_p3.compile(optimizer='adam', loss='binary_crossentropy', metrics=metrics)
+    
     model_p3.fit(X_train, y_p3_train, validation_data=(X_val, y_p3_val),
-                 epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1)
+                 epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1,
+                 class_weight=class_weight_p3)
                  
     return model_p15, model_p3, scaler
 

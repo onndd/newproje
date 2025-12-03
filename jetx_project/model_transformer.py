@@ -112,14 +112,37 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     X_val = X_val.reshape((X_val.shape[0], X_val.shape[1], 1))
     
     # 4. Train
-    model = build_transformer_model(seq_length)
+    # Compute Class Weights
+    from sklearn.utils.class_weight import compute_class_weight
     
+    # P1.5 Weights
+    classes_p15 = np.unique(y_p15_train)
+    weights_p15 = compute_class_weight(class_weight='balanced', classes=classes_p15, y=y_p15_train)
+    class_weight_p15 = dict(zip(classes_p15, weights_p15))
+    print(f"P1.5 Class Weights: {class_weight_p15}")
+    
+    # P3.0 Weights
+    classes_p3 = np.unique(y_p3_train)
+    weights_p3 = compute_class_weight(class_weight='balanced', classes=classes_p3, y=y_p3_train)
+    class_weight_p3 = dict(zip(classes_p3, weights_p3))
+    print(f"P3.0 Class Weights: {class_weight_p3}")
+
     callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
+    
+    # Define Metrics
+    metrics = ['accuracy', tf.keras.metrics.Precision(name='precision'), tf.keras.metrics.Recall(name='recall')]
+    
+    # Re-compile to add new metrics
+    model = build_transformer_model(seq_length)
+    model.compile(optimizer='adam', 
+                  loss={'p15': 'binary_crossentropy', 'p3': 'binary_crossentropy'},
+                  metrics={'p15': metrics, 'p3': metrics})
     
     print("Training Transformer (The Attention)...")
     model.fit(X_train, {'p15': y_p15_train, 'p3': y_p3_train}, 
               validation_data=(X_val, {'p15': y_p15_val, 'p3': y_p3_val}),
-              epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1)
+              epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1,
+              class_weight={'p15': class_weight_p15, 'p3': class_weight_p3})
               
     return model, scaler
 

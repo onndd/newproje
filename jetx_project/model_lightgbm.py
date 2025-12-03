@@ -36,7 +36,8 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train):
         num_leaves=50, 
         min_child_samples=10,
         subsample=0.8,
-        colsample_bytree=0.8
+        colsample_bytree=0.8,
+        class_weight='balanced' # Handle class imbalance
     )
     clf_p3.fit(X_t, y_p3_t, eval_set=[(X_val, y_p3_val)], eval_metric='logloss',
                callbacks=[lgb.early_stopping(100)])
