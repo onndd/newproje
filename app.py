@@ -126,8 +126,9 @@ if st.button("Add Result & Predict"):
             seq_len = 200
             # Get last seq_len values
             last_seq = history_arr[-seq_len:]
-            # Scale
+            # Scale and Clip
             last_seq_scaled = mc_scaler.transform(last_seq.reshape(-1, 1))
+            last_seq_scaled = np.clip(last_seq_scaled, 0, 1) # Ensure within bounds
             X_lstm = last_seq_scaled.reshape(1, seq_len, 1)
             probs['C'] = mc_p15.predict(X_lstm)[0][0]
         except Exception as e:
@@ -161,7 +162,8 @@ if st.button("Add Result & Predict"):
         np.array([probs['C']]),
         np.array([probs['D']]),
         np.array([probs['E']]),
-        np.array([current_state])
+        np.array([current_state]),
+        values=history_arr # Pass raw values for 1.00x frequency feature
     )
     
     final_prob = predict_meta(meta_model, meta_scaler, meta_X)[0]

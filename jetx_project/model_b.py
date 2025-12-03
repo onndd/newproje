@@ -102,7 +102,7 @@ def create_pattern_vector(values, end_index, length=300):
         np.array([has_big_x]),
         np.array([has_long_red]),
         np.array([has_long_green])
-    ])
+    ], dtype=np.float32)
 
 def build_memory(values, start_index=300):
     """
@@ -127,7 +127,7 @@ def build_memory(values, start_index=300):
                 'p3': 1 if next_val >= 3.0 else 0
             })
             
-    return np.array(patterns), targets
+    return np.array(patterns, dtype=np.float32), targets
 
 def train_model_b(patterns, n_components=50):
     """
