@@ -12,10 +12,9 @@ def load_data(db_path=DB_PATH):
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database file not found at: {db_path}")
 
-    conn = sqlite3.connect(db_path)
-    query = "SELECT id, value FROM jetx_results ORDER BY id ASC"
-    df = pd.read_sql_query(query, conn)
-    conn.close()
+    with sqlite3.connect(db_path) as conn:
+        query = "SELECT id, value FROM jetx_results ORDER BY id ASC"
+        df = pd.read_sql_query(query, conn)
     
     # Ensure 'value' is numeric (float), handle potential string issues
     df['value'] = pd.to_numeric(df['value'], errors='coerce')

@@ -59,12 +59,17 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     val_values = values[split_idx:]
     
     # 2. Fit Scaler ONLY on Training Data
+    # FIX: Apply Log Transformation first to handle outliers (e.g. 5000x)
+    # This prevents the 1.0-2.0 range from being crushed.
+    train_values_log = np.log1p(train_values)
+    val_values_log = np.log1p(val_values)
+    
     scaler = MinMaxScaler(feature_range=(0, 1))
-    scaler.fit(train_values.reshape(-1, 1))
+    scaler.fit(train_values_log.reshape(-1, 1))
     
     # Transform
-    train_scaled = scaler.transform(train_values.reshape(-1, 1))
-    val_scaled = scaler.transform(val_values.reshape(-1, 1))
+    train_scaled = scaler.transform(train_values_log.reshape(-1, 1))
+    val_scaled = scaler.transform(val_values_log.reshape(-1, 1))
     
     # 3. Create Sequences Separately
     # Train sequences: strictly from train data
@@ -94,7 +99,9 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     val_values_with_context = np.concatenate([context_values, val_values])
     
     # Scale the combined validation data using the SAME scaler fitted on train
-    val_scaled_with_context = scaler.transform(val_values_with_context.reshape(-1, 1))
+    # FIX: Apply Log Transform first
+    val_values_with_context_log = np.log1p(val_values_with_context)
+    val_scaled_with_context = scaler.transform(val_values_with_context_log.reshape(-1, 1))
     
     # Create sequences
     # Now X_val will start predicting for the first element of original val_values

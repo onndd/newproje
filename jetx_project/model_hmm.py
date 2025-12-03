@@ -181,6 +181,10 @@ def predict_categorical_hmm_states(model, values, state_map, bins):
     import pandas as pd
     
     # 1. Discretize using SAVED bins
+    if bins is None:
+        print("Warning: No bins provided for CategoricalHMM. Using fallback.")
+        bins = np.array([1.0, 1.2, 1.5, 2.0, 5.0, 100000.0])
+        
     s_values = pd.Series(values)
     discretized = pd.cut(s_values, bins=bins, labels=False, include_lowest=True)
     

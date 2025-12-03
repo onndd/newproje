@@ -79,13 +79,18 @@ if 'history' not in st.session_state:
         st.session_state.history = [] 
 
 # Input
-new_val = st.number_input("Enter Last Result (X):", min_value=1.00, step=0.01, format="%.2f")
+new_val = st.number_input("Enter Last Result (X):", min_value=1.00, max_value=100000.0, step=0.01, format="%.2f")
 
 if st.button("Add Result & Predict"):
     st.session_state.history.append(new_val)
     
     history_arr = np.array(st.session_state.history)
     current_idx = len(history_arr) - 1
+    
+    # Check for sufficient data
+    if len(history_arr) < 500:
+        st.warning(f"Not enough data for reliable predictions. Collecting data... ({len(history_arr)}/500)")
+        st.stop()
     
     # Initialize probabilities
     probs = {
@@ -127,8 +132,10 @@ if st.button("Add Result & Predict"):
             seq_len = 200
             # Get last seq_len values
             last_seq = history_arr[-seq_len:]
+            # FIX: Apply Log Transform first
+            last_seq_log = np.log1p(last_seq)
             # Scale and Clip
-            last_seq_scaled = mc_scaler.transform(last_seq.reshape(-1, 1))
+            last_seq_scaled = mc_scaler.transform(last_seq_log.reshape(-1, 1))
             last_seq_scaled = np.clip(last_seq_scaled, 0, 1) # Ensure within bounds
             X_lstm = last_seq_scaled.reshape(1, seq_len, 1)
             probs['C'] = mc_p15.predict(X_lstm)[0][0]
