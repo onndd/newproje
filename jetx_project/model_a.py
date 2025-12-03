@@ -24,6 +24,10 @@ def prepare_model_a_data(values, hmm_states, start_index=500):
     from .features import extract_features_batch
     X = extract_features_batch(df)
     
+    # Prevent target leakage: remove raw value column from features
+    if 'value' in X.columns:
+        X = X.drop(columns=['value'])
+    
     # Add HMM State
     X['hmm_state'] = hmm_states
     

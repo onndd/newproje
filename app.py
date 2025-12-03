@@ -19,15 +19,29 @@ from jetx_project.model_hmm import load_hmm_model, predict_hmm_state
 from jetx_project.ensemble import load_meta_learner, prepare_meta_features, predict_meta
 import sqlite3
 
-def save_to_db(value):
-    """Saves the new result to the database."""
-    try:
-        with sqlite3.connect('jetx.db') as conn:
-            cursor = conn.cursor()
-            cursor.execute("INSERT INTO jetx_results (value) VALUES (?)", (value,))
-            conn.commit()
-    except Exception as e:
-        st.error(f"Database Save Error: {e}")
+DB_PATH = "jetx.db"
+
+
+def _ensure_table_exists(conn):
+    """Create results table if it does not exist."""
+    conn.execute(
+        """
+        CREATE TABLE IF NOT EXISTS jetx_results (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            value REAL NOT NULL
+        )
+        """
+    )
+
+
+def save_to_db(value, db_path=DB_PATH):
+    """Saves the new result to the database, raising on failure."""
+    with sqlite3.connect(db_path) as conn:
+        _ensure_table_exists(conn)
+        cursor = conn.cursor()
+        cursor.execute("INSERT INTO jetx_results (value) VALUES (?)", (float(value),))
+        conn.commit()
+    return True
 
 st.set_page_config(page_title="JetX Predictor", layout="wide")
 
@@ -85,10 +99,10 @@ else:
 # Session State for History
 if 'history' not in st.session_state:
     # Try to load from DB first
-    if os.path.exists('jetx.db'):
+    if os.path.exists(DB_PATH):
         try:
             from jetx_project.data_loader import load_data, get_values_array
-            df = load_data('jetx.db')
+            df = load_data(DB_PATH)
             vals = get_values_array(df)
             st.session_state.history = vals.tolist()
             st.success(f"Loaded {len(vals)} records from jetx.db")
@@ -104,18 +118,17 @@ new_val = st.number_input("Enter Last Result (X):", min_value=1.00, max_value=10
 if st.button("Add Result & Predict"):
     # 1. Save to DB (Persistence) - CRITICAL FIX: Only update RAM if DB save succeeds
     try:
-        save_to_db(new_val)
-        
-        # 2. Update Session State
-        st.session_state.history.append(new_val)
-        
-        # Memory Leak Fix: Limit history size
-        if len(st.session_state.history) > 10000:
-            st.session_state.history.pop(0)
-            
+        save_to_db(new_val, DB_PATH)
     except Exception as e:
         st.error(f"CRITICAL: Failed to save to DB. RAM not updated to ensure consistency. Error: {e}")
         st.stop()
+    
+    # 2. Update Session State (only if DB write succeeded)
+    st.session_state.history.append(new_val)
+    
+    # Memory Leak Fix: Limit history size
+    if len(st.session_state.history) > 10000:
+        st.session_state.history.pop(0)
     
     history_arr = np.array(st.session_state.history)
     current_idx = len(history_arr) - 1

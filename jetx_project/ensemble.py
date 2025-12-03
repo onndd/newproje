@@ -27,6 +27,18 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     """
     n_samples = len(preds_a)
     
+    inputs = {
+        "preds_a": preds_a,
+        "preds_b": preds_b,
+        "preds_c": preds_c,
+        "preds_d": preds_d,
+        "preds_e": preds_e,
+        "hmm_states": hmm_states,
+    }
+    for name, arr in inputs.items():
+        if len(arr) != n_samples:
+            raise ValueError(f"Length mismatch in meta features: expected {n_samples}, got {len(arr)} for {name}")
+    
     # One-Hot Encode HMM States (Assuming 3 states: 0, 1, 2)
     hmm_onehot = np.zeros((n_samples, 3))
     for i in range(n_samples):
@@ -63,7 +75,7 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
             bust_freq = bust_freq_slice[-n_samples:]
         else:
             # Should not happen if logic is correct, but fallback
-             bust_freq = np.pad(bust_freq_slice, (n_samples - len(bust_freq_slice), 0), 'constant')
+            bust_freq = np.pad(bust_freq_slice, (n_samples - len(bust_freq_slice), 0), 'constant')
             
     # Handle Transformer Predictions
     if preds_transformer is None:
@@ -73,6 +85,8 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         # For backward compatibility, let's assume we are moving to a new version where it exists.
         # We'll fill with 0.5 if missing, but ideally it should be passed.
         preds_transformer = np.full(n_samples, 0.5)
+    elif len(preds_transformer) != n_samples:
+        raise ValueError(f"Length mismatch in meta features: expected {n_samples}, got {len(preds_transformer)} for preds_transformer")
         
     meta_features = np.column_stack([
         preds_a,

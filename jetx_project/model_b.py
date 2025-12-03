@@ -256,7 +256,10 @@ def train_model_b(patterns, n_components=50):
     # 2. Train k-NN
     # Using 'auto' allows scikit-learn to choose the best algorithm (BallTree, KDTree, or Brute)
     # based on the data structure, which is often faster and more memory efficient than forcing 'brute'.
-    nbrs = NearestNeighbors(n_neighbors=200, algorithm='auto', metric='manhattan')
+    n_neighbors = min(200, len(patterns_reduced))
+    if n_neighbors < 1:
+        raise ValueError("Not enough patterns to train k-NN memory.")
+    nbrs = NearestNeighbors(n_neighbors=n_neighbors, algorithm='auto', metric='manhattan')
     nbrs.fit(patterns_reduced)
     
     return nbrs, pca
