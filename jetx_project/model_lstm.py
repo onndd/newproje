@@ -70,6 +70,20 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
     # Train sequences: strictly from train data
     X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, seq_length)
     
+    # DEBUG: Check for leakage
+    print(f"DEBUG: X_train shape: {X_train.shape}")
+    print(f"DEBUG: First sequence (last 5 values): {X_train[0, -5:, 0]}")
+    print(f"DEBUG: First target (P1.5): {y_p15_train[0]}")
+    print(f"DEBUG: First target (Value): {train_values[seq_length]}") # Corresponds to first target
+    
+    # Sanity Check: If X_train[0, -1] == target, we have leakage (assuming scaled)
+    # But target is unscaled in print, X is scaled.
+    # Let's check if X_train[i, -1] is exactly equal to X_train[i+1, -2] (overlap property)
+    # This is expected.
+    
+    # Real leakage check: Does X[i] contain y[i]?
+    # No easy way to check without inverse transform, but the print will help.
+    
     # Validation sequences:
     # FIX: To avoid losing the first 'seq_length' samples of validation (Context Loss),
     # we need to prepend the last 'seq_length' samples of training data to validation data.

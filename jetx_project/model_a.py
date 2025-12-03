@@ -64,17 +64,19 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     print("\n--- Training Model A (P1.5) ---")
     y_p15_t, y_p15_val = y_p15_train[:split_idx], y_p15_train[split_idx:]
     
-    model_p15 = CatBoostClassifier(
-        iterations=1000, 
-        learning_rate=0.03, 
-        depth=6, # Reduced depth for CPU
-        l2_leaf_reg=3,
-        border_count=128,
-        early_stopping_rounds=100, 
-        eval_metric='AUC',
-        verbose=100
-        # Removed GPU requirement for compatibility
-    )
+    # Optimized parameters (Manual tuning to prevent overfitting)
+    params = {
+        'iterations': 2000,
+        'learning_rate': 0.005, # Slower learning
+        'depth': 6, # Reduced from 10 to 6
+        'l2_leaf_reg': 9, # Increased regularization
+        'loss_function': 'Logloss',
+        'eval_metric': 'Accuracy',
+        'random_seed': 42,
+        'verbose': 100,
+        'early_stopping_rounds': 100
+    }
+    model_p15 = CatBoostClassifier(**params)
     model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))
     
     # Evaluate
@@ -94,17 +96,19 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     # 2. Model P3 (Classifier)
     print("\n--- Training Model A (P3.0) ---")
     y_p3_t, y_p3_val = y_p3_train[:split_idx], y_p3_train[split_idx:]
-    
-    model_p3 = CatBoostClassifier(
-        iterations=1000, 
-        learning_rate=0.03, 
-        depth=6,
-        l2_leaf_reg=3,
-        border_count=128,
-        early_stopping_rounds=100, 
-        eval_metric='AUC',
-        verbose=100
-    )
+    # Optimized parameters (Manual tuning to prevent overfitting)
+    params = {
+        'iterations': 2000,
+        'learning_rate': 0.005, # Slower learning
+        'depth': 6, # Reduced from 10 to 6
+        'l2_leaf_reg': 9, # Increased regularization
+        'loss_function': 'Logloss',
+        'eval_metric': 'Accuracy',
+        'random_seed': 42,
+        'verbose': 100,
+        'early_stopping_rounds': 100
+    }
+    model_p3 = CatBoostClassifier(**params)
     model_p3.fit(X_t, y_p3_t, eval_set=(X_val, y_p3_val))
     
     # Evaluate

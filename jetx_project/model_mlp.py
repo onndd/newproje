@@ -26,13 +26,15 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     # P1.5 Model
     print("Training MLP (P1.5)...")
     clf_p15 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
-                            solver='adam', max_iter=500, early_stopping=True, verbose=True)
+                            solver='adam', alpha=0.01, learning_rate_init=0.001,
+                            max_iter=500, early_stopping=True, verbose=True)
     clf_p15.fit(X_t, y_p15_t)
     
     # P3.0 Model
     print("Training MLP (P3.0)...")
     clf_p3 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
-                           solver='adam', max_iter=500, early_stopping=True, verbose=True)
+                           solver='adam', alpha=0.01, learning_rate_init=0.001,
+                           max_iter=500, early_stopping=True, verbose=True)
     clf_p3.fit(X_t, y_p3_t)
     
     return clf_p15, clf_p3, feature_cols # Return feature cols to save/use during prediction
