@@ -84,6 +84,16 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     acc_p15 = accuracy_score(y_p15_val, preds_p15)
     print(f"Validation Accuracy (P1.5): {acc_p15:.4f}")
     
+    # Detailed Reporting
+    from sklearn.metrics import confusion_matrix, classification_report
+    cm = confusion_matrix(y_p15_val, preds_p15)
+    print(f"Confusion Matrix (P1.5):\n{cm}")
+    if cm.shape == (2, 2):
+        tn, fp, fn, tp = cm.ravel()
+        print(f"Correctly Predicted >1.5x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
+        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
+    print("Classification Report:\n", classification_report(y_p15_val, preds_p15))
+    
     # Feature Importance Analysis
     print("\nTop 10 Features (P1.5):")
     feature_importance = model_p15.get_feature_importance()
@@ -117,6 +127,16 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     preds_p3 = model_p3.predict(X_val)
     acc_p3 = accuracy_score(y_p3_val, preds_p3)
     print(f"Validation Accuracy (P3.0): {acc_p3:.4f}")
+    
+    # Detailed Reporting
+    from sklearn.metrics import confusion_matrix, classification_report
+    cm = confusion_matrix(y_p3_val, preds_p3)
+    print(f"Confusion Matrix (P3.0):\n{cm}")
+    if cm.shape == (2, 2):
+        tn, fp, fn, tp = cm.ravel()
+        print(f"Correctly Predicted >3.0x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
+        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
+    print("Classification Report:\n", classification_report(y_p3_val, preds_p3))
 
     # 3. Model X (Regressor)
     print("\n--- Training Model A (Regression) ---")

@@ -127,6 +127,33 @@ def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
                  epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1,
                  class_weight=class_weight_p3)
                  
+    # Detailed Reporting
+    from sklearn.metrics import confusion_matrix, classification_report
+    
+    # P1.5 Report
+    print("\n--- LSTM P1.5 Report ---")
+    preds_p15_prob = model_p15.predict(X_val)
+    preds_p15 = (preds_p15_prob > 0.5).astype(int)
+    cm_p15 = confusion_matrix(y_p15_val, preds_p15)
+    print(f"Confusion Matrix (P1.5):\n{cm_p15}")
+    if cm_p15.shape == (2, 2):
+        tn, fp, fn, tp = cm_p15.ravel()
+        print(f"Correctly Predicted >1.5x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
+        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
+    print(classification_report(y_p15_val, preds_p15))
+
+    # P3.0 Report
+    print("\n--- LSTM P3.0 Report ---")
+    preds_p3_prob = model_p3.predict(X_val)
+    preds_p3 = (preds_p3_prob > 0.5).astype(int)
+    cm_p3 = confusion_matrix(y_p3_val, preds_p3)
+    print(f"Confusion Matrix (P3.0):\n{cm_p3}")
+    if cm_p3.shape == (2, 2):
+        tn, fp, fn, tp = cm_p3.ravel()
+        print(f"Correctly Predicted >3.0x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
+        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
+    print(classification_report(y_p3_val, preds_p3))
+                 
     return model_p15, model_p3, scaler
 
 def save_lstm_models(model_p15, model_p3, scaler, output_dir='.'):

@@ -42,6 +42,31 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train):
     clf_p3.fit(X_t, y_p3_t, eval_set=[(X_val, y_p3_val)], eval_metric='logloss',
                callbacks=[lgb.early_stopping(100)])
                
+    # Detailed Reporting
+    from sklearn.metrics import confusion_matrix, classification_report
+    
+    # P1.5 Report
+    preds_p15 = clf_p15.predict(X_val)
+    print("\n--- LightGBM P1.5 Report ---")
+    cm_p15 = confusion_matrix(y_p15_val, preds_p15)
+    print(f"Confusion Matrix (P1.5):\n{cm_p15}")
+    if cm_p15.shape == (2, 2):
+        tn, fp, fn, tp = cm_p15.ravel()
+        print(f"Correctly Predicted >1.5x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
+        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
+    print(classification_report(y_p15_val, preds_p15))
+
+    # P3.0 Report
+    preds_p3 = clf_p3.predict(X_val)
+    print("\n--- LightGBM P3.0 Report ---")
+    cm_p3 = confusion_matrix(y_p3_val, preds_p3)
+    print(f"Confusion Matrix (P3.0):\n{cm_p3}")
+    if cm_p3.shape == (2, 2):
+        tn, fp, fn, tp = cm_p3.ravel()
+        print(f"Correctly Predicted >3.0x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
+        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
+    print(classification_report(y_p3_val, preds_p3))
+               
     return clf_p15, clf_p3
 
 def save_lightgbm_models(model_p15, model_p3, output_dir='.'):
