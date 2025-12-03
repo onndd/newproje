@@ -1,12 +1,11 @@
 
 import numpy as np
 import pandas as pd
+from typing import Dict, Any
 from .config import WINDOWS, SET1_RANGES, SET2_RANGES, SET3_RANGES
 from .categorization import get_set1_id, get_set2_id, get_set3_id
 
-
-
-def extract_features(history_full, current_index):
+def extract_features(history_full: np.ndarray, current_index: int) -> Dict[str, float]:
     """
     Extracts all features for Model A at a specific point in time (current_index).
     Optimized: Uses extract_features_batch on a small window.
@@ -69,7 +68,7 @@ def extract_features(history_full, current_index):
     
     return features_dict
 
-def extract_features_batch(df):
+def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     """
     Vectorized feature extraction for the entire DataFrame.
     Much faster than looping extract_features() for training.

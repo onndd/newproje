@@ -106,8 +106,8 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
         if kasa1_active and p_1_5 >= 0.75:
             bet = 10
             target = 1.5
-            # SLIPPAGE: We require true_val to be at least target + 0.01 to guarantee a win
-            if true_val >= target + 0.01:
+            # SLIPPAGE: We require true_val to be at least target + 0.02 to guarantee a win
+            if true_val >= target + 0.02:
                 profit = bet * (target - 1)
             else:
                 profit = -bet
@@ -119,7 +119,7 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
         if kasa2_active and p_1_5 >= 0.85:
             bet = 20
             target = 1.5
-            if true_val > target:
+            if true_val >= target + 0.02:
                 profit = bet * (target - 1)
             else:
                 profit = -bet
@@ -133,7 +133,7 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
             # Target exit: max(1.5, 0.8 * x_pred)
             target = max(1.5, 0.8 * pred_x)
             
-            if true_val >= target:
+            if true_val >= target + 0.02:
                 profit = bet * (target - 1)
             else:
                 profit = -bet
@@ -163,7 +163,7 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
                 bet = kasa4.balance * bet_fraction
                 bet = max(bet, 1.0)
                 
-                if true_val > target:
+                if true_val >= target + 0.02:
                     profit = bet * (target - 1)
                 else:
                     profit = -bet

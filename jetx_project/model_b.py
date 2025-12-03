@@ -104,28 +104,137 @@ def create_pattern_vector(values, end_index, length=300):
         np.array([has_long_green])
     ], dtype=np.float32)
 
-def build_memory(values, start_index=300):
+def sliding_window_view(arr, window_size):
     """
-    Builds the memory bank for Model B.
+    Efficiently creates sliding windows using numpy strides.
+    """
+    shape = (arr.shape[0] - window_size + 1, window_size) + arr.shape[1:]
+    strides = (arr.strides[0],) + arr.strides
+    return np.lib.stride_tricks.as_strided(arr, shape=shape, strides=strides)
+
+def calculate_streaks_vectorized(window):
+    """
+    Helper for vectorized streak calculation (used in apply_along_axis).
+    """
+    is_red = (window < 1.5)
+    changes = np.concatenate(([True], is_red[1:] != is_red[:-1]))
+    run_ids = np.cumsum(changes)
+    run_lengths = np.bincount(run_ids)
+    
+    run_starts = np.where(changes)[0]
+    run_values = is_red[run_starts]
+    
+    valid_lengths = run_lengths[1:]
+    if len(valid_lengths) > 0:
+        red_runs = valid_lengths[run_values]
+        max_red = np.max(red_runs) if len(red_runs) > 0 else 0
+        
+        green_runs = valid_lengths[~run_values]
+        max_green = np.max(green_runs) if len(green_runs) > 0 else 0
+    else:
+        max_red = 0
+        max_green = 0
+        
+    return max_red, max_green
+
+def build_memory(values: np.ndarray, start_index: int = 300):
+    """
+    Builds the memory bank for Model B using Vectorization.
     
     Returns:
-        memory_patterns: Matrix of patterns
-        memory_targets: Dictionary or array of targets corresponding to patterns
+        memory_patterns: Matrix of patterns (N, Features)
+        memory_targets: List of targets
     """
-    patterns = []
-    targets = [] # Stores dict of {next_val, p15, p3}
+    print("Building Memory (Vectorized)...")
     
-    for i in range(start_index, len(values) - 1):
-        pat = create_pattern_vector(values, i, length=300)
-        if pat is not None:
-            patterns.append(pat)
-            
-            next_val = values[i+1]
-            targets.append({
-                'val': next_val,
-                'p15': 1 if next_val >= 1.5 else 0,
-                'p3': 1 if next_val >= 3.0 else 0
-            })
+    # 1. Create Sliding Windows
+    # We need windows ending at start_index to len(values)-2
+    # (because we need next_val at i+1)
+    
+    # Slice values to include enough history for the first window
+    # The first window ends at start_index. It starts at start_index - 299.
+    # We need values from [start_index - 299 : end]
+    
+    window_len = 300
+    if start_index < window_len:
+        start_index = window_len
+        
+    # We want windows for indices i in range(start_index, len(values)-1)
+    # The last index we process is len(values)-2.
+    # The window for index i is values[i-299 : i+1]
+    
+    # Let's slice the relevant part of values
+    # We need from (start_index - 299) to (len(values) - 1)
+    relevant_values = values[start_index - window_len + 1 : len(values)]
+    
+    # Create windows
+    windows = sliding_window_view(relevant_values[:-1], window_len)
+    # windows[0] corresponds to index start_index
+    # windows[-1] corresponds to index len(values)-2
+    
+    # Targets correspond to values[start_index+1 : ]
+    target_values = values[start_index+1:]
+    
+    if len(windows) != len(target_values):
+        print(f"Warning: Windows {len(windows)} != Targets {len(target_values)}. Truncating.")
+        min_len = min(len(windows), len(target_values))
+        windows = windows[:min_len]
+        target_values = target_values[:min_len]
+        
+    # 2. Vectorized Feature Extraction
+    
+    # Numeric Log Norm
+    norm_windows = np.log1p(windows) / np.log1p(1000.0)
+    
+    # Categorical Sets
+    from .categorization import get_set1_ids, get_set2_ids, get_set3_ids, get_set4_ids, get_set5_ids, get_set6_ids
+    
+    # get_setX_ids works on 1D arrays usually. If it uses digitize, it flattens.
+    # We need to reshape back or apply along axis?
+    # Actually, np.digitize works on N-d arrays and returns N-d array of bins.
+    # Let's verify categorization.py implementation. 
+    # It likely uses np.digitize(values, bins). This preserves shape.
+    
+    s1 = get_set1_ids(windows) / 5.0
+    s2 = get_set2_ids(windows) / 5.0
+    s3 = get_set3_ids(windows) / 5.0
+    s4 = get_set4_ids(windows) / 5.0
+    s5 = get_set5_ids(windows) / 5.0
+    s6 = get_set6_ids(windows) / 5.0
+    
+    # Scalars
+    rtp_balances = (np.sum(windows, axis=1) - (window_len * 0.97)) / 100.0
+    has_big_x = (np.max(windows, axis=1) >= 10.0).astype(np.float32)
+    
+    # Streaks (The slow part - use apply_along_axis)
+    # This is still a loop in C, faster than Python loop
+    streaks = np.apply_along_axis(calculate_streaks_vectorized, 1, windows)
+    has_long_red = (streaks[:, 0] >= 8).astype(np.float32)
+    has_long_green = (streaks[:, 1] >= 8).astype(np.float32)
+    
+    # 3. Concatenate
+    # We need to flatten the window features? 
+    # create_pattern_vector returns: [norm_window, s1, s2...] flattened
+    # norm_windows is (N, 300). s1 is (N, 300).
+    # We want result (N, Features).
+    
+    patterns = np.concatenate([
+        norm_windows,
+        s1, s2, s3, s4, s5, s6,
+        rtp_balances.reshape(-1, 1),
+        has_big_x.reshape(-1, 1),
+        has_long_red.reshape(-1, 1),
+        has_long_green.reshape(-1, 1)
+    ], axis=1)
+    
+    # Targets
+    targets = []
+    for val in target_values:
+        targets.append({
+            'val': val,
+            'p15': 1 if val >= 1.5 else 0,
+            'p3': 1 if val >= 3.0 else 0
+        })
             
     return np.array(patterns, dtype=np.float32), targets
 

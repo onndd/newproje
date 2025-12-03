@@ -32,7 +32,8 @@ def load_all_models():
         mc_p15, mc_p3, mc_scaler = load_lstm_models('.')
         md_p15, md_p3 = load_lightgbm_models('.')
         me_p15, me_p3, me_cols = load_mlp_models('.')
-        hmm_model, hmm_map = load_hmm_model('.')
+        # Updated to load bins for CategoricalHMM
+        hmm_model, hmm_map, hmm_bins = load_hmm_model('.')
         meta_model, meta_scaler = load_meta_learner('.')
         
         return (ma_p15, ma_p3, ma_x, 
@@ -40,7 +41,7 @@ def load_all_models():
                 mc_p15, mc_p3, mc_scaler,
                 md_p15, md_p3,
                 me_p15, me_p3, me_cols,
-                hmm_model, hmm_map,
+                hmm_model, hmm_map, hmm_bins,
                 meta_model, meta_scaler)
     except Exception as e:
         st.error(f"Error loading models: {e}")
@@ -54,7 +55,7 @@ if models:
      mc_p15, mc_p3, mc_scaler,
      md_p15, md_p3,
      me_p15, me_p3, me_cols,
-     hmm_model, hmm_map,
+     hmm_model, hmm_map, hmm_bins,
      meta_model, meta_scaler) = models
     st.success("All Models & Ensemble Loaded Successfully!")
 else:
@@ -136,7 +137,7 @@ if st.button("Add Result & Predict"):
             
     # --- HMM State ---
     try:
-        # Predict state for the *entire* history to get the latest state context
+        # Predict state using CategoricalHMM
         # Ideally we just need the last state, but HMM is sequential.
         # For speed, we can take a recent window if history is huge.
         hmm_window = 500
@@ -145,7 +146,9 @@ if st.button("Add Result & Predict"):
         else:
             hmm_input = history_arr
             
-        hmm_states = predict_hmm_state(hmm_model, hmm_input, hmm_map)
+        # Use CategoricalHMM prediction
+        from jetx_project.model_hmm import predict_categorical_hmm_states
+        hmm_states = predict_categorical_hmm_states(hmm_model, hmm_input, hmm_map, bins=hmm_bins)
         current_state = hmm_states[-1]
     except Exception as e:
         st.error(f"HMM Error: {e}")

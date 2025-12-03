@@ -116,16 +116,20 @@ def predict_hmm_states_causal(model, values, state_map, window_size=50):
             
     return causal_states
 
-def save_hmm_model(model, state_map, output_dir='.'):
+def save_hmm_model(model, state_map, bins=None, output_dir='.'):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
         
-    joblib.dump({'model': model, 'map': state_map}, os.path.join(output_dir, 'model_hmm.pkl'))
+    data = {'model': model, 'map': state_map}
+    if bins is not None:
+        data['bins'] = bins
+        
+    joblib.dump(data, os.path.join(output_dir, 'model_hmm.pkl'))
     print(f"HMM model saved to {output_dir}")
 
 def load_hmm_model(model_dir='.'):
     data = joblib.load(os.path.join(model_dir, 'model_hmm.pkl'))
-    return data['model'], data['map']
+    return data['model'], data['map'], data.get('bins', None)
 
 def train_categorical_hmm(values, n_components=3, n_bins=5):
     """
@@ -192,3 +196,40 @@ def predict_categorical_hmm_states(model, values, state_map, bins):
     mapped_states = np.array([state_map[s] for s in hidden_states])
     
     return mapped_states
+
+def predict_categorical_hmm_states_causal(model, values, state_map, bins, window_size=50):
+    """
+    Predicts CategoricalHMM states causally using a rolling window.
+    Prevents look-ahead bias.
+    """
+    import pandas as pd
+    n = len(values)
+    causal_states = np.zeros(n, dtype=int)
+    
+    # 1. Discretize ALL values first (using fixed bins)
+    s_values = pd.Series(values)
+    discretized = pd.cut(s_values, bins=bins, labels=False, include_lowest=True)
+    discretized = discretized.fillna(len(bins)-2).astype(int)
+    X_discrete = discretized.values.reshape(-1, 1)
+    
+    print(f"Predicting Categorical HMM states causally (Window: {window_size})...")
+    
+    for i in range(n):
+        start_idx = max(0, i - window_size + 1)
+        window = X_discrete[start_idx : i + 1]
+        
+        if len(window) < 1:
+            causal_states[i] = 0
+            continue
+            
+        try:
+            hidden_states = model.predict(window)
+            last_state = hidden_states[-1]
+            causal_states[i] = state_map[last_state]
+        except:
+            causal_states[i] = 0
+            
+        if i % 5000 == 0 and i > 0:
+            print(f"Processed {i}/{n} samples...")
+            
+    return causal_states
