@@ -91,7 +91,7 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     
     if preds_transformer is not None:
         if len(preds_transformer) != n_samples:
-             raise ValueError(f"Length mismatch in meta features: expected {n_samples}, got {len(preds_transformer)} for preds_transformer")
+            raise ValueError(f"Length mismatch in meta features: expected {n_samples}, got {len(preds_transformer)} for preds_transformer")
         feature_list.append(preds_transformer)
         
     feature_list.append(hmm_onehot)

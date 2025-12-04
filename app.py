@@ -304,25 +304,23 @@ if st.button("Add Result & Predict"):
         current_state = 1 # Default to Normal
         
     # --- ENSEMBLE PREDICTION ---
-    # Prepare meta features
-    # Order: A, B, C, D, E, HMM_State
-    # Note: prepare_meta_features expects arrays, so we wrap in list
-    
+    # Prepare Meta Features
+    # Fix: Handle None values by replacing them with 0.5 (neutral) for the meta-learner
+    # The meta-learner expects numeric inputs, not None.
     meta_X = prepare_meta_features(
-        np.array([probs['A']]),
-        np.array([probs['B']]),
-        np.array([probs['C']]),
-        np.array([probs['D']]),
-        np.array([probs['E']]),
+        np.array([probs['A'] if probs['A'] is not None else 0.5]),
+        np.array([probs['B'] if probs['B'] is not None else 0.5]),
+        np.array([probs['C'] if probs['C'] is not None else 0.5]),
+        np.array([probs['D'] if probs['D'] is not None else 0.5]),
+        np.array([probs['E'] if probs['E'] is not None else 0.5]),
         np.array([current_state]),
-        values=history_arr, # Pass raw values for 1.00x frequency feature
-        preds_transformer=np.array([probs['T']]) if models.get('transformer') else None
+        np.array([100.0]), # Placeholder for bust_freq if not calculated
+        preds_transformer=np.array([probs['T'] if probs['T'] is not None else 0.5]) if probs['T'] is not None else None
     )
     
     if models.get('meta'):
         final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
     else:
-        # Simple average if meta learner missing
         # Simple average if meta learner missing
         # Fix: Filter out None values to avoid bias
         available_probs = [p for p in probs.values() if p is not None]
@@ -336,13 +334,24 @@ if st.button("Add Result & Predict"):
     col1, col2, col3 = st.columns(3)
     
     with col1:
-        st.subheader("Individual Models")
-        st.write(f"CatBoost (A): {probs['A']:.2%}")
-        st.write(f"k-NN (B): {probs['B']:.2%}")
-        st.write(f"LSTM (C): {probs['C']:.2%}")
-        st.write(f"LightGBM (D): {probs['D']:.2%}")
-        st.write(f"MLP (E): {probs['E']:.2%}")
-        st.write(f"Transformer (T): {probs['T']:.2%}")
+        st.subheader("Model Predictions (1.5x)")
+        if probs['A'] is not None: st.write(f"CatBoost (A): {probs['A']:.2%}")
+        else: st.write("CatBoost (A): N/A")
+        
+        if probs['B'] is not None: st.write(f"Memory (B): {probs['B']:.2%}")
+        else: st.write("Memory (B): N/A")
+        
+        if probs['C'] is not None: st.write(f"LSTM (C): {probs['C']:.2%}")
+        else: st.write("LSTM (C): N/A")
+        
+        if probs['D'] is not None: st.write(f"LightGBM (D): {probs['D']:.2%}")
+        else: st.write("LightGBM (D): N/A")
+        
+        if probs['E'] is not None: st.write(f"MLP (E): {probs['E']:.2%}")
+        else: st.write("MLP (E): N/A")
+        
+        if probs['T'] is not None: st.write(f"Transformer (T): {probs['T']:.2%}")
+        else: st.write("Transformer (T): N/A")
         
     with col2:
         st.subheader("Market Context")
