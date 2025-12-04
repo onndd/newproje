@@ -190,7 +190,15 @@ def load_transformer_models(model_dir='.'):
     if not os.path.exists(model_path) or not os.path.exists(scaler_path):
         return None, None
         
-    model = load_model(model_path)
-    scaler = joblib.load(scaler_path)
-    
-    return model, scaler
+    # Fix: Pass custom_objects and compile=False for Apple Silicon/Inference safety
+    try:
+        model = load_model(
+            model_path, 
+            custom_objects={'PositionalEncoding': PositionalEncoding},
+            compile=False
+        )
+        scaler = joblib.load(scaler_path)
+        return model, scaler
+    except Exception as e:
+        print(f"Error loading Transformer model: {e}")
+        return None, None

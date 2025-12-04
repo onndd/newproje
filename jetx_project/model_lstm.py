@@ -174,8 +174,9 @@ def load_lstm_models(model_dir='.'):
     if not os.path.exists(p15_path) or not os.path.exists(p3_path) or not os.path.exists(scaler_path):
         return None, None, None
         
-    model_p15 = load_model(p15_path)
-    model_p3 = load_model(p3_path)
+    # Fix: compile=False for Apple Silicon/Inference safety
+    model_p15 = load_model(p15_path, compile=False)
+    model_p3 = load_model(p3_path, compile=False)
     scaler = joblib.load(scaler_path)
     
     return model_p15, model_p3, scaler

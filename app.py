@@ -51,42 +51,73 @@ st.title("JetX AI Prediction System (Ensemble Powered)")
 # Load Models
 @st.cache_resource
 def load_all_models():
+    models = {}
+    
+    # Model A
     try:
-        models = {}
-        
-        # Load all individual models
-        # Model A
         ma_p15, ma_p3, ma_x = load_models('.')
         models['model_a'] = {'p15': ma_p15, 'p3': ma_p3, 'x': ma_x} if ma_p15 else None
-        
-        # Model B
+    except Exception as e:
+        st.error(f"Model A failed to load: {e}")
+        models['model_a'] = None
+
+    # Model B
+    try:
         mb_nbrs, mb_pca, mb_pats, mb_targs = load_memory('.')
         models['model_b'] = {'nbrs': mb_nbrs, 'pca': mb_pca, 'targs': mb_targs} if mb_nbrs else None
-        
-        # Model C
+    except Exception as e:
+        st.error(f"Model B failed to load: {e}")
+        models['model_b'] = None
+
+    # Model C (LSTM)
+    try:
         mc_p15, mc_p3, mc_scaler = load_lstm_models('.')
         models['model_c'] = {'p15': mc_p15, 'p3': mc_p3, 'scaler': mc_scaler} if mc_p15 else None
-        
-        # Model D
+    except Exception as e:
+        st.error(f"Model C (LSTM) failed to load: {e}")
+        models['model_c'] = None
+
+    # Model D (LightGBM)
+    try:
         md_p15, md_p3 = load_lightgbm_models('.')
         models['model_d'] = {'p15': md_p15, 'p3': md_p3} if md_p15 else None
-        
-        # Model E
+    except Exception as e:
+        st.error(f"Model D (LightGBM) failed to load: {e}")
+        models['model_d'] = None
+
+    # Model E (MLP)
+    try:
         me_p15, me_p3, me_cols = load_mlp_models('.')
         models['model_e'] = {'p15': me_p15, 'p3': me_p3, 'cols': me_cols} if me_p15 else None
-        
-        # HMM
+    except Exception as e:
+        st.error(f"Model E (MLP) failed to load: {e}")
+        models['model_e'] = None
+
+    # HMM
+    try:
         hmm_model, hmm_map, hmm_bins = load_hmm_model('.')
         models['hmm'] = {'model': hmm_model, 'map': hmm_map, 'bins': hmm_bins} if hmm_model else None
-        
-        # Meta Learner
+    except Exception as e:
+        st.error(f"HMM model failed to load: {e}")
+        models['hmm'] = None
+
+    # Meta Learner
+    try:
         meta_model, meta_scaler = load_meta_learner('.')
         models['meta'] = {'model': meta_model, 'scaler': meta_scaler} if meta_model else None
-        
-        return models
     except Exception as e:
-        st.error(f"Error loading models: {e}")
-        return None
+        st.error(f"Meta Learner failed to load: {e}")
+        models['meta'] = None
+        
+    # Transformer Model
+    try:
+        mt_model, mt_scaler = load_transformer_models('.')
+        models['transformer'] = {'model': mt_model, 'scaler': mt_scaler} if mt_model else None
+    except Exception as e:
+        st.error(f"Transformer Model failed to load: {e}")
+        models['transformer'] = None
+    
+    return models
 
 models = load_all_models()
 
@@ -102,10 +133,11 @@ if 'history' not in st.session_state:
     if os.path.exists(DB_PATH):
         try:
             from jetx_project.data_loader import load_data, get_values_array
-            df = load_data(DB_PATH)
+            # Fix: Limit to last 2000 records to prevent OOM and improve performance
+            df = load_data(DB_PATH, limit=2000)
             vals = get_values_array(df)
             st.session_state.history = vals.tolist()
-            st.success(f"Loaded {len(vals)} records from jetx.db")
+            st.success(f"Loaded last {len(vals)} records from jetx.db")
         except Exception as e:
             st.error(f"Could not load from DB: {e}")
             st.session_state.history = []
