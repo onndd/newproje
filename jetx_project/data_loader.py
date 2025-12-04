@@ -19,8 +19,11 @@ def load_data(db_path=DB_PATH, limit=None):
             # Assuming 'id' and 'value' are the columns of interest,
             # and 'rowid' implies the order of insertion.
             # We fetch all columns for simplicity, then filter if needed.
-            query = f"SELECT id, value FROM jetx_results ORDER BY rowid DESC LIMIT {limit}"
-            df = pd.read_sql_query(query, conn)
+            # Use parameterized query to prevent SQL Injection
+            # Ensure limit is an integer
+            limit = int(limit)
+            query = "SELECT id, value FROM jetx_results ORDER BY rowid DESC LIMIT ?"
+            df = pd.read_sql_query(query, conn, params=(limit,))
             # Reverse to chronological order (oldest to newest)
             df = df.iloc[::-1].reset_index(drop=True)
         else:

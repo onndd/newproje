@@ -78,26 +78,26 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
             bust_freq = np.pad(bust_freq_slice, (n_samples - len(bust_freq_slice), 0), 'constant')
             
     # Handle Transformer Predictions
-    if preds_transformer is None:
-        # If not provided, assume 0.5 (neutral) or 0? 
-        # If the model was trained WITH transformer, this must be provided.
-        # If trained WITHOUT, this column shouldn't exist.
-        # For backward compatibility, let's assume we are moving to a new version where it exists.
-        # We'll fill with 0.5 if missing, but ideally it should be passed.
-        preds_transformer = np.full(n_samples, 0.5)
-    elif len(preds_transformer) != n_samples:
-        raise ValueError(f"Length mismatch in meta features: expected {n_samples}, got {len(preds_transformer)} for preds_transformer")
-        
-    meta_features = np.column_stack([
+    # Fix: Only add transformer column if it is NOT None.
+    # This prevents shape mismatch if the meta-learner was trained without it.
+    
+    feature_list = [
         preds_a,
         preds_b,
         preds_c,
         preds_d,
-        preds_e,
-        preds_transformer, # Added Transformer
-        hmm_onehot,
-        bust_freq
-    ])
+        preds_e
+    ]
+    
+    if preds_transformer is not None:
+        if len(preds_transformer) != n_samples:
+             raise ValueError(f"Length mismatch in meta features: expected {n_samples}, got {len(preds_transformer)} for preds_transformer")
+        feature_list.append(preds_transformer)
+        
+    feature_list.append(hmm_onehot)
+    feature_list.append(bust_freq)
+
+    meta_features = np.column_stack(feature_list)
     
     return meta_features
 

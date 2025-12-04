@@ -175,6 +175,7 @@ if st.button("Add Result & Predict"):
         st.stop()
     
     # 2. Update Session State (only if DB write succeeded)
+    # Fix: Moved inside the success block to ensure consistency
     st.session_state.history.append(new_val)
     
     # Memory Leak Fix: Limit history size
@@ -190,8 +191,9 @@ if st.button("Add Result & Predict"):
         st.stop()
     
     # Initialize probabilities
+    # Fix: Initialize with None to avoid biased average with 0.0s
     probs = {
-        'A': 0.0, 'B': 0.0, 'C': 0.0, 'D': 0.0, 'E': 0.0, 'T': 0.0
+        'A': None, 'B': None, 'C': None, 'D': None, 'E': None, 'T': None
     }
     
     # --- Feature Extraction ---
@@ -298,6 +300,7 @@ if st.button("Add Result & Predict"):
             
     except Exception as e:
         st.error(f"HMM Error: {e}")
+        st.warning("⚠️ Piyasa rejimi tespit edilemedi, varsayılan mod (Normal) kullanılıyor.")
         current_state = 1 # Default to Normal
         
     # --- ENSEMBLE PREDICTION ---
@@ -320,8 +323,14 @@ if st.button("Add Result & Predict"):
         final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
     else:
         # Simple average if meta learner missing
+        # Simple average if meta learner missing
+        # Fix: Filter out None values to avoid bias
         available_probs = [p for p in probs.values() if p is not None]
-        final_prob = np.mean(available_probs) if available_probs else 0.0
+        if available_probs:
+            final_prob = np.mean(available_probs)
+        else:
+            st.error("Hiçbir model tahmin üretemedi!")
+            final_prob = 0.0
     
     # --- Display Results ---
     col1, col2, col3 = st.columns(3)
