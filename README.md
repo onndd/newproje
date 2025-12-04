@@ -1,75 +1,47 @@
-# JetX Prediction System (AI-Powered)
+# JetX Prediction System (Streamlit + Ensemble)
 
-Bu proje, JetX oyunu için geliştirilmiş, **manipülasyona dayanıklı** ve **yüksek hassasiyetli** bir yapay zeka tahmin sistemidir. Basit istatistiklerin ötesine geçerek, oyunun psikolojik durumunu (HMM), anlık trendleri (LSTM) ve geçmiş desenleri (k-NN) analiz eden ve bunları bir **Meta-Learner** ile birleştiren gelişmiş bir mimari kullanır.
+JetX oyun sonuçlarını tahmin etmek için birden fazla modeli birleştiren bir Streamlit uygulaması. 1.50x eşiği ana hedef; tüm modeller ve meta-learner bu eşiğe göre optimize edilmiştir.
 
-## 🚀 Özellikler ve Mimari
+## Mimaride Neler Var?
+- **Model A (CatBoost):** Zengin feature seti ile 1.5 / 3.0 olasılığı ve beklenen X regresyonu.
+- **Model B (k-NN / Hafıza):** 300 oyunluk desen benzerliği ve PCA ile hızlı sorgu.
+- **Model C (LSTM):** 200 adımlık dizilerden trend yakalama.
+- **Model D (LightGBM):** Hafif, ağaç tabanlı alternatif.
+- **Model E (MLP):** Sadece ham lag + HMM ile çeşitlilik katar.
+- **Model T (Transformer):** Uzun bağımlılıkları dikkat (attention) katmanıyla öğrenir.
+- **HMM (Categorical/GMM):** Piyasa rejimi (Cold/Normal/Hot) tespiti.
+- **Meta-Learner (LogReg):** A, B, C, D, E, T ve HMM çıktılarından nihai 1.5x olasılığını üretir.
 
-Sistem, tek bir modele güvenmek yerine, farklı güçlü yönleri olan modellerin ortak kararını kullanır:
+## Çalışma Akışı (app.py)
+1) Uygulama açıldığında `jetx.db` varsa son 2000 kayıt RAM’e alınır (OOM koruması).  
+2) Kullanıcı yeni sonucu girer, önce SQLite’a yazılır, sonra RAM geçmişi güncellenir.  
+3) Özellikler: 500+ geçmiş varsa Model A/D/E için feature engineering; 300+ için k-NN, 200+ için LSTM/Transformer dizileri hazırlanır.  
+4) HMM son 500 oyundan rejim çıkarır.  
+5) Meta-learner, alt model olasılıkları + HMM + 1.00x frekansını alır ve **1.50x için nihai olasılığı** döner. 0.65 üstünde “BET” sinyali, aksi halde “WAIT”.  
+6) Tüm modeller yüklenemezse uygulama durur; eksik modeller için ekranda hata görülür.
 
-### 1. Uzman Modeller (The Council)
-*   **Model A (CatBoost - GPU):** Geniş özellik seti (200+ feature) ile eğitilmiş, GPU hızlandırmalı ana karar verici. Hem sınıflandırma (P1.5, P3.0) hem de regresyon (Tahmini X) yapar.
-*   **Model B (k-NN - Hafıza):** "Tarih tekerrürden ibarettir" prensibiyle çalışır. Geçmiş 15.000 oyun içindeki en benzer desenleri bulur (PCA destekli).
-*   **Model C (LSTM - Trend):** Zaman serisi analizi ile son 200 oyunluk periyotları inceleyerek anlık trendin yönünü tahmin eder.
-*   **Model D (LightGBM):** CatBoost'un alternatif görüşü olarak görev yapar (Pasif Uzman).
-*   **Model E (MLP - Sinir Ağı):** Sadece ham verilerle (Raw Lags) beslenen, insan müdahalesi olmayan "saf" bir bakış açısı sunar.
+## Kurulum ve Çalıştırma
+```bash
+python -m venv .venv
+source .venv/bin/activate  # Windows: .venv\\Scripts\\activate
+pip install -r requirements.txt
+streamlit run app.py
+```
 
-### 2. Orkestrasyon (The Meta-Learner)
-Tüm uzmanların görüşleri, bir **Logistic Regression Meta-Learner** tarafından ağırlıklandırılır. Bu katman, hangi modelin hangi piyasa koşulunda (Soğuk/Sıcak) daha başarılı olduğunu öğrenir ve nihai kararı verir.
+## Modellerin Eğitimi
+- Notebook: `JetX_Orchestrator.ipynb` (GPU önerilir).  
+- Çıkışlar: `modelA_*`, `modelB_memory`, `modelC_*`, `modelD_*`, `modelE_*`, `model_transformer.h5`, `model_hmm.pkl`, `meta_learner.pkl` aynı dizinde saklanır.  
+- Meta-learner Transformer’lı eğitildiyse inference sırasında Transformer modelinin de yüklenmesi gerekir (aksi halde varsayılan 0.5 ile doldurulur).
 
-### 3. Anti-Manipülasyon Katmanı (The Shield)
-*   **Causal HMM (Gizli Markov Modeli):** Oyunun o anki "Rejimini" (Soğuk/Normal/Sıcak) tespit eder. **Causal Prediction** (Nedensel Tahmin) yöntemiyle, geleceği görmeden (lookahead bias olmadan) sadece geçmiş veriye dayanarak anlık durum tespiti yapar.
-*   **RTP Takibi:** Kasanın (Casino) ne kadar kârda veya zararda olduğunu izleyerek "Hasat Dönemi"ni (Harvest Mode) tahmin etmeye çalışır.
-*   **Şok Dalgası Analizi:** 10x+ gibi büyük çarpanlardan sonra gelen "Artçı Şokları" analiz eder.
+## Dosya Yapısı (özet)
+- `app.py`: Streamlit arayüzü, tahmin akışı, SQLite yazma/okuma.
+- `jetx_project/features.py`: Feature engineering.
+- `jetx_project/model_*`: Her alt modelin eğitim/yükleme mantığı.
+- `jetx_project/ensemble.py`: Meta feature hazırlanması ve meta-learner tahmini.
+- `jetx_project/data_loader.py`: Veritabanından veriyi parça parça okuma (limit desteği).
+- `verify_fixes.py`: Basit veri yükleme testi (dummy DB ile).
 
-### 4. Optimizasyon ve Simülasyon
-*   **Optuna (Hiperparametre Optimizasyonu):** T4 GPU'nun gücünü kullanarak binlerce farklı parametre kombinasyonunu dener.
-*   **Gelişmiş Simülasyon (4 Farklı Strateji):**
-    *   **Kasa 1 (Conservative):** 1.50x hedef, %75+ güven.
-    *   **Kasa 2 (Moderate):** 1.50x hedef, %85+ güven (Daha seçici).
-    *   **Kasa 3 (High Risk):** 3.00x ve üzeri hedefler için fırsat kollar.
-    *   **Kasa 4 (Smart Kelly):** Kelly Kriteri'ne dayalı dinamik bahis yönetimi. Güven arttıkça bahsi artırır, riskli durumlarda bahsi kısar.
-
-## 🛠 Kurulum
-
-Proje Google Colab üzerinde çalışacak şekilde optimize edilmiştir.
-
-1.  **Google Colab'ı Açın** ve `JetX_Orchestrator.ipynb` dosyasını yükleyin.
-2.  **Runtime Type** ayarını **T4 GPU** olarak seçin.
-3.  Notebook'u çalıştırın. Sistem otomatik olarak:
-    *   Gerekli kütüphaneleri (`catboost`, `optuna`, `hmmlearn` vb.) kuracaktır.
-    *   GitHub'dan en güncel kodları çekecektir.
-    *   `jetx.db` veritabanını işleyecektir.
-
-## 📊 Kullanım ve İş Akışı
-
-`JetX_Orchestrator.ipynb` sırasıyla şu adımları gerçekleştirir:
-
-1.  **Veri Hazırlığı:** Veriyi yükler, temizler ve özellik çıkarımı yapar.
-2.  **HMM Eğitimi:** Rejim tespiti için HMM modelini eğitir (Data Leakage korumalı).
-3.  **Optimizasyon (Optuna):** GPU kullanarak CatBoost için en iyi parametreleri bulur.
-4.  **Model Eğitimi:** Tüm uzman modelleri (A, B, C, D, E) ve Meta-Learner'ı eğitir.
-5.  **Büyük Final (Simülasyon):**
-    *   Son test verisi üzerinde 4 farklı kasa stratejisini yarıştırır.
-    *   Detaylı Kâr/Zarar, Drawdown ve Güven Dağılımı raporları sunar.
-    *   Eğitilen modelleri `models.zip` olarak indirir.
-
-## 📂 Dosya Yapısı
-
-*   `jetx_project/`:
-    *   `features.py`: Gelişmiş özellik mühendisliği (RTP, Streak, Volatility).
-    *   `ensemble.py`: Meta-Learner ve model birleştirme mantığı.
-    *   `simulation.py`: 4 farklı strateji ile gerçekçi kasa yönetimi.
-    *   `optimization.py`: Optuna ile GPU tabanlı optimizasyon.
-    *   `model_a.py`: CatBoost (Ana Model).
-    *   `model_b.py`: k-NN (Hafıza Modeli).
-    *   `model_c.py`: LSTM (Trend Modeli).
-    *   `model_d.py`: LightGBM.
-    *   `model_e.py`: MLP (Sinir Ağı).
-    *   `model_hmm.py`: Rejim tespiti.
-    *   `evaluation.py`: Detaylı performans metrikleri.
-*   `JetX_Orchestrator.ipynb`: Ana yönetim paneli.
-
-## ⚠️ Önemli Notlar
-
-*   **Yatırım Tavsiyesi Değildir:** Bu proje tamamen eğitim ve araştırma amaçlıdır.
-*   **Başarı Oranı:** Genel doğruluktan ziyade **Precision (Kazanma Oranı)** hedeflenmiştir. Hedef, her eli bilmek değil, girilen ellerde %70+ başarı sağlamaktır.
+## Kritik Notlar
+- **1.50x eşiği korunmalıdır:** Eşik sabit; meta-learner ve sinyalleme bu hedef için tasarlandı.
+- Kayıt sayısı azsa (<500) tahmin yapılmaz; kullanıcıya uyarı verilir.
+- Varsayılan fallback ortalaması sadece meta-learner yoksa devrededir; gerçek kullanım için modellerin eğitilmiş olması gerekir.

@@ -17,6 +17,7 @@ from jetx_project.model_lightgbm import load_lightgbm_models
 from jetx_project.model_mlp import load_mlp_models
 from jetx_project.model_hmm import load_hmm_model, predict_hmm_state
 from jetx_project.ensemble import load_meta_learner, prepare_meta_features, predict_meta
+from jetx_project.model_transformer import load_transformer_models
 import sqlite3
 
 DB_PATH = "jetx.db"
@@ -121,11 +122,29 @@ def load_all_models():
 
 models = load_all_models()
 
-if models is not None:
-    st.success("Models Loaded (Dictionary Mode)")
-else:
-    st.warning("Please train models first using the Orchestrator.")
+if models is None:
+    st.error("Please train models first using the Orchestrator.")
     st.stop()
+
+model_name_map = {
+    'model_a': 'Model A',
+    'model_b': 'Model B',
+    'model_c': 'Model C (LSTM)',
+    'model_d': 'Model D (LightGBM)',
+    'model_e': 'Model E (MLP)',
+    'transformer': 'Transformer',
+    'hmm': 'HMM',
+    'meta': 'Meta-Learner'
+}
+
+loaded_predictors = [model_name_map[k] for k in ['model_a', 'model_b', 'model_c', 'model_d', 'model_e', 'transformer'] if models.get(k)]
+loaded_context = [model_name_map[k] for k in ['hmm', 'meta'] if models.get(k)]
+
+if not loaded_predictors and not loaded_context:
+    st.error("Hiçbir model yüklenemedi. Lütfen Orchestrator ile modelleri eğitin.")
+    st.stop()
+else:
+    st.success(f"Yüklenenler: {', '.join(loaded_predictors + loaded_context)}")
 
 # Session State for History
 if 'history' not in st.session_state:
@@ -172,7 +191,7 @@ if st.button("Add Result & Predict"):
     
     # Initialize probabilities
     probs = {
-        'A': 0.0, 'B': 0.0, 'C': 0.0, 'D': 0.0, 'E': 0.0
+        'A': 0.0, 'B': 0.0, 'C': 0.0, 'D': 0.0, 'E': 0.0, 'T': 0.0
     }
     
     # --- Feature Extraction ---
@@ -230,6 +249,29 @@ if st.button("Add Result & Predict"):
             probs['C'] = mc_p15.predict(X_lstm)[0][0]
         except Exception as e:
             st.error(f"Model C Error: {e}")
+
+    # --- Transformer (Model T) ---
+    if len(history_arr) >= 200 and models.get('transformer'):
+        try:
+            mt_model = models['transformer']['model']
+            mt_scaler = models['transformer']['scaler']
+
+            seq_len = 200
+            last_seq = history_arr[-seq_len:]
+            last_seq_log = np.log1p(last_seq)
+            last_seq_scaled = mt_scaler.transform(last_seq_log.reshape(-1, 1))
+            last_seq_scaled = np.clip(last_seq_scaled, 0, 1)
+            X_transformer = last_seq_scaled.reshape(1, seq_len, 1)
+
+            preds_t = mt_model.predict(X_transformer)
+            # Keras may return [p15, p3] list or a single array; we only need 1.5x head
+            if isinstance(preds_t, (list, tuple)) and len(preds_t) > 0:
+                transformer_prob = float(np.ravel(preds_t[0])[0])
+            else:
+                transformer_prob = float(np.ravel(preds_t)[0])
+            probs['T'] = transformer_prob
+        except Exception as e:
+            st.error(f"Transformer Model Error: {e}")
             
     # --- HMM State ---
     try:
@@ -270,14 +312,16 @@ if st.button("Add Result & Predict"):
         np.array([probs['D']]),
         np.array([probs['E']]),
         np.array([current_state]),
-        values=history_arr # Pass raw values for 1.00x frequency feature
+        values=history_arr, # Pass raw values for 1.00x frequency feature
+        preds_transformer=np.array([probs['T']]) if models.get('transformer') else None
     )
     
     if models.get('meta'):
         final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
     else:
         # Simple average if meta learner missing
-        final_prob = np.mean(list(probs.values()))
+        available_probs = [p for p in probs.values() if p is not None]
+        final_prob = np.mean(available_probs) if available_probs else 0.0
     
     # --- Display Results ---
     col1, col2, col3 = st.columns(3)
@@ -289,6 +333,7 @@ if st.button("Add Result & Predict"):
         st.write(f"LSTM (C): {probs['C']:.2%}")
         st.write(f"LightGBM (D): {probs['D']:.2%}")
         st.write(f"MLP (E): {probs['E']:.2%}")
+        st.write(f"Transformer (T): {probs['T']:.2%}")
         
     with col2:
         st.subheader("Market Context")
