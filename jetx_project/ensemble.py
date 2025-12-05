@@ -50,32 +50,16 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
             
     # Calculate 1.00x Frequency (Last 50 games)
     bust_freq = np.zeros(n_samples)
-    # 1.00x Frequency Feature (Last 50 games)
     if values is not None and len(values) > 0:
         import pandas as pd
-        is_bust = (values <= 1.00).astype(int)
-        # Fix: Use min_periods=1 to handle short history (start of game)
+        # En sondaki n_samples değer üzerinden hizalı pencere hesapla
+        vals_tail = np.array(values)[-n_samples:]
+        is_bust = (vals_tail <= 1.00).astype(int)
         bust_freq_series = pd.Series(is_bust).rolling(window=50, min_periods=1).mean()
-        
-        # Align with prediction indices
-        # If we are predicting for index N, we need stats from N-1
-        # But here we are given 'values' which might be the full history or a slice.
-        # We assume 'values' corresponds to the rows we are predicting for?
-        # Actually, usually 'values' is the FULL history.
-        # If so, we need to slice it to match n_samples.
-        # However, the current implementation assumes 'values' aligns with the predictions somehow.
-        # Let's stick to the original logic but make it robust.
-        
-        if len(bust_freq_series) >= n_samples:
-             bust_freq_slice = bust_freq_series.iloc[-n_samples:].values
-             bust_freq = bust_freq_slice
-        else:
-             # Pad with mean or 0 if not enough data
-             current_vals = bust_freq_series.values
-             pad_width = n_samples - len(current_vals)
-             bust_freq = np.pad(current_vals, (pad_width, 0), 'edge') # Pad with last known value
-    else:
-        bust_freq = np.zeros(n_samples)
+        bust_freq = bust_freq_series.values
+        if len(bust_freq) < n_samples:
+            pad_width = n_samples - len(bust_freq)
+            bust_freq = np.pad(bust_freq, (pad_width, 0), mode='edge')
             
     # Handle Transformer Predictions
     # Fix: Only add transformer column if it is NOT None.

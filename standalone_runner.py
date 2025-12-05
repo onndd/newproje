@@ -80,35 +80,27 @@ def main():
     mt_model, mt_scaler = train_model_transformer(values)
     save_transformer_models(mt_model, mt_scaler, output_dir='models_standalone')
     
-    # 9. Train Meta-Learner & Simulate
-    print("\n[9/9] Training Meta-Learner & Running Simulation...")
-    
-    # We need predictions from all models on the validation set to train Meta-Learner
-    # For simplicity in this standalone runner, we'll use the last 10% of data for simulation
-    # and the previous 10% for Meta-Learner training.
-    
-    # This part requires careful orchestration similar to the notebook.
-    # To keep this script simple and robust, we will skip the complex Meta-Learner training
-    # and instead run a simulation using the individual models we just trained.
-    
-    # Prepare Simulation Data (Last 500 games)
-    sim_len = 500
-    sim_values = values[-sim_len:]
-    
-    # Placeholder for predictions
-    sim_results = []
-    
-    print(f"Running Simulation on last {sim_len} games...")
-    
-    # Note: In a real scenario, we would predict step-by-step to avoid leakage.
-    # Here, for speed, we assume models are trained on past data and we test on recent data.
-    # Since we trained on ALL data above (with internal splits), this is an 'in-sample' test 
-    # for the most part, but serves to verify the pipeline works.
-    
-    # To do a proper out-of-sample test, we should have split 'values' at step 1.
-    
-    print("Simulation complete. (Note: This is a pipeline test, not a rigorous backtest due to data overlap)")
-    print("To run a rigorous backtest, use the JetX_Orchestrator notebook.")
+    # 9. Quick Simulation (Model A only for sanity check)
+    print("\n[9/9] Running Simulation (Model A based)...")
+    try:
+        sim_len = min(500, len(X_a))
+        X_sim = X_a.iloc[-sim_len:]
+        true_vals = y_x_a[-sim_len:]
+        preds_p15 = ma_p15.predict_proba(X_sim)[:, 1]
+        preds_p3 = ma_p3.predict_proba(X_sim)[:, 1]
+        preds_x = ma_x.predict(X_sim)
+        
+        sim_df = pd.DataFrame({
+            'true_val': true_vals,
+            'p_1_5': preds_p15,
+            'p_3': preds_p3,
+            'pred_x': preds_x
+        })
+        
+        run_simulation(sim_df, model_name="Model A (Standalone)")
+        print("Simulation complete. (Not a strict out-of-sample backtest; uses model A only.)")
+    except Exception as e:
+        print(f"Simulation step failed: {e}")
     
     print("\n✅ Standalone Run Completed Successfully!")
     print("Models saved to 'models_standalone' directory.")

@@ -104,8 +104,10 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     
     # 3. Create Sequences
     from .model_lstm import create_sequences
-    X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, seq_length)
-    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled_with_context, seq_length)
+    # create_sequences expects (input_values, target_values, seq_length)
+    # Targets ham değerler, girişler ölçekli değerler olmalı.
+    X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, train_values, seq_length)
+    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled_with_context, val_values_with_context, seq_length)
     
     # Reshape
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))

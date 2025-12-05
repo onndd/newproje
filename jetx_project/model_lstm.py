@@ -33,7 +33,22 @@ def create_sequences(input_values, target_values, seq_length=200):
         
     return np.array(X), np.array(y_p15), np.array(y_p3), np.array(y_val)
 
-# ... (build_lstm_model remains same) ...
+def build_lstm_model(seq_length):
+    """
+    Basit iki katmanlı LSTM mimarisi.
+    Giriş: (seq_length, 1), Çıkış: tek olasılık başı.
+    """
+    model = Sequential()
+    model.add(LSTM(128, return_sequences=True, input_shape=(seq_length, 1)))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
+    model.add(LSTM(64, return_sequences=False))
+    model.add(Dropout(0.2))
+    model.add(BatchNormalization())
+    model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.2))
+    model.add(Dense(1, activation='sigmoid'))
+    return model
 
 def train_model_lstm(values, seq_length=200, epochs=5, batch_size=128):
     """
