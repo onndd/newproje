@@ -24,7 +24,8 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train):
         num_leaves=50, # Increased capacity
         min_child_samples=10, # Allow learning from fewer samples
         subsample=0.8,
-        colsample_bytree=0.8
+        colsample_bytree=0.8,
+        class_weight='balanced'
     )
     clf_p15.fit(X_t, y_p15_t, eval_set=[(X_val, y_p15_val)], eval_metric='logloss', 
                 callbacks=[lgb.early_stopping(100)])

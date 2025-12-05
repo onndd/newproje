@@ -128,8 +128,8 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
         new_features[f'w{w}_current_streak_over_2'] = new_features[f'w{w}_current_streak_over_2'].fillna(df.index.to_series())
 
     # 2. Raw Lags (Vectorized)
-    lag_max = 200
-    # Create all lag columns at once
+    lag_max = 20
+    # Create all lag columns at once (sadece yakın geçmişi ham olarak tutuyoruz)
     for i in range(1, lag_max + 1):
         new_features[f'raw_lag_{i}'] = values.shift(i)
 

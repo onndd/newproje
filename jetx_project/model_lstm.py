@@ -50,7 +50,7 @@ def build_lstm_model(seq_length):
     model.add(Dense(1, activation='sigmoid'))
     return model
 
-def train_model_lstm(values, seq_length=200, epochs=5, batch_size=128):
+def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128):
     """
     Trains LSTM models for P1.5 and P3 with NO DATA LEAKAGE.
     """

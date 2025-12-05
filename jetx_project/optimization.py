@@ -45,7 +45,7 @@ def optimize_catboost(X, y, n_trials=20, timeout=600):
             # Custom Scoring Logic
             # We use a high threshold (0.75) to encourage confidence
             preds_proba = model.predict_proba(X_val)[:, 1]
-            threshold = 0.75
+            threshold = 0.50
             preds = (preds_proba >= threshold).astype(int)
             
             from sklearn.metrics import confusion_matrix
@@ -117,7 +117,7 @@ def optimize_lightgbm(X, y, n_trials=20, timeout=600):
             
             # Custom Scoring Logic
             preds_proba = model.predict_proba(X_val)[:, 1]
-            threshold = 0.75
+            threshold = 0.50
             preds = (preds_proba >= threshold).astype(int)
             
             from sklearn.metrics import confusion_matrix

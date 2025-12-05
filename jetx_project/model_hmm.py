@@ -3,6 +3,7 @@ import numpy as np
 import joblib
 import os
 from hmmlearn import hmm
+from .config import HMM_BIN_EDGES
 
 def train_hmm_model(values, n_components=3):
     """
@@ -140,7 +141,7 @@ def load_hmm_model(model_dir='.'):
         
     return data['model'], data['map'], data.get('bins', None)
 
-def train_categorical_hmm(values, n_components=3, n_bins=5):
+def train_categorical_hmm(values, n_components=3, n_bins=5, bins=None):
     """
     Trains a CategoricalHMM by first discretizing the data into bins.
     This is more robust to outliers and 1.00x spikes than GMM.
@@ -148,19 +149,16 @@ def train_categorical_hmm(values, n_components=3, n_bins=5):
     import pandas as pd
     
     # 1. Discretize Data (Binning)
-    # qcut tries to divide into equal sized bins (quantiles)
+    # Varsayılan: sabit kenarlar (config HMM_BIN_EDGES) ile 1.50 sınırı garanti.
     s_values = pd.Series(values)
-    try:
-        # qcut might fail if too many duplicate values (like 1.00). 
-        # duplicates='drop' helps.
-        discretized, bins = pd.qcut(s_values, q=n_bins, retbins=True, labels=False, duplicates='drop')
-    except:
-        # Fallback to fixed logarithmic bins if qcut fails
-        bins = np.array([1.0, 1.2, 1.5, 2.0, 5.0, 100000.0])
-        discretized = pd.cut(s_values, bins=bins, labels=False, include_lowest=True)
-        # Fill NaNs with last bin
-        discretized = discretized.fillna(len(bins)-2).astype(int)
-        
+    if bins is None:
+        bins = np.array(HMM_BIN_EDGES, dtype=float)
+    # Hedeflenen bin sayısı, kenar sayısından türetilir
+    n_bins = len(bins) - 1
+    discretized = pd.cut(s_values, bins=bins, labels=False, include_lowest=True)
+    # Handle out of bounds
+    discretized = discretized.fillna(len(bins)-2).astype(int)
+    
     X_discrete = discretized.values.reshape(-1, 1)
     
     print(f"Categorical HMM: Discretized into {len(bins)-1} bins.")

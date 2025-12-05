@@ -125,11 +125,8 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     # P3.0 Sample Weights
     sample_weight_p3 = compute_sample_weight(class_weight='balanced', y=y_p3_train)
     
-    # Combine into a dictionary mapping output layer names to sample weights
-    sample_weights = {
-        'p15': sample_weight_p15,
-        'p3': sample_weight_p3
-    }
+    # Keras çoklu çıktı için en güvenli kullanım: model çıktılarının sırasına uygun liste
+    sample_weights = [sample_weight_p15, sample_weight_p3]
     
     print("Computed sample weights for Transformer multi-output training.")
     
@@ -145,10 +142,16 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
                   metrics={'p15': metrics, 'p3': metrics})
     
     print("Training Transformer (The Attention)...")
-    model.fit(X_train, {'p15': y_p15_train, 'p3': y_p3_train}, 
-              validation_data=(X_val, {'p15': y_p15_val, 'p3': y_p3_val}),
-              epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1,
-              sample_weight=sample_weights)
+    model.fit(
+        X_train,
+        {'p15': y_p15_train, 'p3': y_p3_train},
+        validation_data=(X_val, {'p15': y_p15_val, 'p3': y_p3_val}),
+        epochs=epochs,
+        batch_size=batch_size,
+        callbacks=callbacks,
+        verbose=1,
+        sample_weight=sample_weights
+    )
               
     # Detailed Reporting
     from sklearn.metrics import confusion_matrix, classification_report
