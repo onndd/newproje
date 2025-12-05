@@ -8,55 +8,38 @@ from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.preprocessing import MinMaxScaler
 import joblib
 
-def create_sequences(values, seq_length=200):
+def create_sequences(input_values, target_values, seq_length=200):
     """
     Creates sequences for LSTM.
+    input_values: Scaled values for X
+    target_values: Raw values for y (to check >= 1.5)
     """
     X = []
     y_p15 = []
     y_p3 = []
     y_val = []
     
-    for i in range(seq_length, len(values)):
-        seq = values[i-seq_length:i]
+    # Ensure lengths match (they should if passed correctly)
+    min_len = min(len(input_values), len(target_values))
+    
+    for i in range(seq_length, min_len):
+        seq = input_values[i-seq_length:i]
         X.append(seq)
-        target = values[i]
+        
+        target = target_values[i] # Use RAW value for target
         y_val.append(target)
         y_p15.append(1 if target >= 1.5 else 0)
         y_p3.append(1 if target >= 3.0 else 0)
         
     return np.array(X), np.array(y_p15), np.array(y_p3), np.array(y_val)
 
-def build_lstm_model(seq_length):
-    """
-    Builds a simplified LSTM model.
-    """
-    from tensorflow.keras.layers import Input
-    
-    model = Sequential()
-    model.add(Input(shape=(seq_length, 1)))
-    # Simplified architecture for ~15k samples
-    model.add(LSTM(128, return_sequences=True))
-    model.add(BatchNormalization())
-    model.add(Dropout(0.3))
-    model.add(LSTM(64, return_sequences=False))
-    model.add(BatchNormalization())
-    model.add(Dropout(0.3))
-    model.add(Dense(32, activation='relu'))
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
-    return model
+# ... (build_lstm_model remains same) ...
 
 def train_model_lstm(values, seq_length=200, epochs=5, batch_size=128):
     """
     Trains LSTM models for P1.5 and P3 with NO DATA LEAKAGE.
     """
     # 1. Strict Chronological Split (Raw Data)
-    # Train: 0% - 70%
-    # Gap: 70% - 75% (Unused)
-    # Val: 75% - 85%
-    # Test (Holdout): 85% - 100% (Ignored here, used in simulation)
-    
     n_total = len(values)
     train_end = int(n_total * 0.70)
     val_start = int(n_total * 0.75)
@@ -79,11 +62,9 @@ def train_model_lstm(values, seq_length=200, epochs=5, batch_size=128):
     val_scaled = scaler.transform(val_log.reshape(-1, 1))
     
     # 3. Create Sequences Separately
-    # This ensures X_val is strictly from the future relative to X_train
-    # and shares NO overlap because of the 5% gap (which is > seq_length)
-    
-    X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, seq_length)
-    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, seq_length)
+    # Pass SCALED for X, and RAW for y
+    X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, raw_train, seq_length)
+    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, raw_val, seq_length)
     
     # Reshape for LSTM
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
