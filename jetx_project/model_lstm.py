@@ -51,120 +51,45 @@ def train_model_lstm(values, seq_length=200, epochs=5, batch_size=128):
     """
     Trains LSTM models for P1.5 and P3 with NO DATA LEAKAGE.
     """
-    # 1. Split Data Chronologically FIRST
-    # We need to reserve the last 15% for validation
-    # FIX: Add a GAP of seq_length to ensure absolutely no overlap/leakage
-    split_idx = int(len(values) * 0.85)
+    # 1. Strict Chronological Split (Raw Data)
+    # Train: 0% - 70%
+    # Gap: 70% - 75% (Unused)
+    # Val: 75% - 85%
+    # Test (Holdout): 85% - 100% (Ignored here, used in simulation)
     
-    train_values = values[:split_idx]
-    # Gap: Skip seq_length samples to avoid any window overlap
-    val_values = values[split_idx + seq_length:] 
+    n_total = len(values)
+    train_end = int(n_total * 0.70)
+    val_start = int(n_total * 0.75)
+    val_end = int(n_total * 0.85)
     
-    if len(val_values) < seq_length + 10:
-        print("Warning: Validation set too small after gap. Reducing gap.")
-        val_values = values[split_idx:] # Fallback
+    raw_train = values[:train_end]
+    raw_val = values[val_start:val_end]
+    
+    print(f"LSTM Split: Train ({len(raw_train)}), Val ({len(raw_val)})")
     
     # 2. Fit Scaler ONLY on Training Data
-    # FIX: Apply Log Transformation first to handle outliers (e.g. 5000x)
-    train_values_log = np.log1p(train_values)
-    val_values_log = np.log1p(val_values)
+    # Log Transform first
+    train_log = np.log1p(raw_train)
+    val_log = np.log1p(raw_val)
     
     scaler = MinMaxScaler(feature_range=(0, 1))
-    scaler.fit(train_values_log.reshape(-1, 1))
+    scaler.fit(train_log.reshape(-1, 1))
     
-    # Transform
-    train_scaled = scaler.transform(train_values_log.reshape(-1, 1))
-    val_scaled = scaler.transform(val_values_log.reshape(-1, 1))
+    train_scaled = scaler.transform(train_log.reshape(-1, 1))
+    val_scaled = scaler.transform(val_log.reshape(-1, 1))
     
     # 3. Create Sequences Separately
-    # Train sequences: strictly from train data
-    X_train_full, y_p15_train_full, y_p3_train_full, _ = create_sequences(train_scaled, seq_length)
+    # This ensures X_val is strictly from the future relative to X_train
+    # and shares NO overlap because of the 5% gap (which is > seq_length)
     
-    # Validation sequences:
-    # Since we added a gap, we don't need context from train anymore.
-    # We treat validation as a completely independent future segment.
-    X_val_full, y_p15_val_full, y_p3_val_full, _ = create_sequences(val_scaled, seq_length)
-    # Fix: Strict Chronological Split with Gap to prevent leakage
-    # Train: 0 to 70%
-    # Gap: 70% to 75% (Unused)
-    # Val: 75% to 85%
+    X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, seq_length)
+    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, seq_length)
     
-    # Combine scaled train and validation data for overall sequence creation
-    # This is a conceptual combination for splitting, actual sequences are created from respective parts
-    # For the new splitting logic, we need to create sequences from the *entire* scaled dataset first,
-    # then split those sequences.
+    # Reshape for LSTM
+    X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
+    X_val = X_val.reshape((X_val.shape[0], X_val.shape[1], 1))
     
-    # Re-doing sequence creation based on the new splitting logic
-    # First, create sequences from the *entire* scaled dataset (train_scaled + val_scaled)
-    # This assumes `values` in create_sequences is the full scaled dataset.
-    # Let's adjust the logic to fit the new splitting requirement.
-    
-    # The original `train_model_lstm` function already splits `values` into `train_values` and `val_values`
-    # and then scales them into `train_scaled` and `val_scaled`.
-    # The `create_sequences` function is then called on `train_scaled` and `val_scaled` separately.
-    # The new instruction seems to imply creating sequences from a single `X` (representing all data)
-    # and then splitting `X` and `y` arrays.
-    # This contradicts the previous `train_scaled` and `val_scaled` separation.
-    
-    # To faithfully apply the instruction, I will assume the instruction wants to replace the
-    # existing `X_train`, `y_p15_train`, `y_p3_train`, `X_val`, `y_p15_val`, `y_p3_val`
-    # with a new splitting scheme *after* initial sequence creation.
-    # This means the `create_sequences` call should happen on a larger dataset first.
-    
-    # Let's revert to the original splitting logic for `train_scaled` and `val_scaled`
-    # and then apply the new splitting logic on the *results* of `create_sequences`
-    # if the instruction intends to re-split the already created sequences.
-    
-    # Given the instruction's context, it seems to want to apply a different chronological split
-    # *after* the initial scaling and sequence creation.
-    # This implies that `X` in the instruction refers to the combined sequences from `train_scaled` and `val_scaled`.
-    # This is a bit ambiguous with the existing code structure.
-    
-    # Let's assume the instruction wants to replace the current `X_train`, `X_val` etc.
-    # with a new split based on a combined `X` and `y` from the *entire* scaled dataset.
-    # This would require creating sequences from `np.concatenate((train_scaled, val_scaled))`
-    # which would introduce data leakage if `val_scaled` is used to create `X_train`.
-    
-    # The instruction says "Fix leakage by strict splitting and gap".
-    # The current code already has a gap between `train_values` and `val_values`.
-    # The instruction's new split `total_len = len(X)`, `train_end = int(total_len * 0.70)`, etc.
-    # implies `X` is the full set of sequences.
-    
-    # To make the change faithfully and syntactically correct, I will interpret the instruction
-    # as replacing the *definition* of `X_train`, `y_p15_train`, `y_p3_train`, `X_val`, `y_p15_val`, `y_p3_val`
-    # with the new splitting logic, assuming `X`, `y_p15`, `y_p3` are derived from the *entire* dataset.
-    # This would mean the previous `create_sequences(train_scaled, ...)` and `create_sequences(val_scaled, ...)`
-    # are no longer the primary source for `X_train` and `X_val`.
-    
-    # Let's create sequences from the *entire* scaled dataset first, then apply the new split.
-    # This is the most direct interpretation of the provided code snippet.
-    
-    # Combine scaled data for overall sequence creation
-    full_scaled_data = np.concatenate((train_scaled, val_scaled))
-    X_all, y_p15_all, y_p3_all, _ = create_sequences(full_scaled_data, seq_length)
-    
-    # Reshape for LSTM (before splitting, as the split is on the sequence arrays)
-    X_all = X_all.reshape((X_all.shape[0], X_all.shape[1], 1))
-    
-    # Fix: Strict Chronological Split with Gap to prevent leakage
-    # Train: 0 to 70%
-    # Gap: 70% to 75% (Unused)
-    # Val: 75% to 85%
-    
-    total_len = len(X_all)
-    train_end = int(total_len * 0.70)
-    val_start = int(total_len * 0.75) # 5% gap
-    val_end = int(total_len * 0.85)
-    
-    X_train = X_all[:train_end]
-    y_p15_train = y_p15_all[:train_end]
-    y_p3_train = y_p3_all[:train_end]
-    
-    X_val = X_all[val_start:val_end]
-    y_p15_val = y_p15_all[val_start:val_end]
-    y_p3_val = y_p3_all[val_start:val_end]
-    
-    print(f"LSTM Train size: {len(X_train)}, Val size: {len(X_val)}")
+    print(f"LSTM Sequences: Train ({len(X_train)}), Val ({len(X_val)})")
     
     # Compute Class Weights (No Upsampling)
     from sklearn.utils.class_weight import compute_class_weight
