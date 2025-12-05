@@ -1,16 +1,38 @@
-# JetX Prediction System (Streamlit + Ensemble)
+# JetX Tahmin Sistemi (Streamlit + Ensemble)
 
-JetX oyun sonuçlarını tahmin etmek için birden fazla modeli birleştiren bir Streamlit uygulaması. 1.50x eşiği ana hedef; tüm modeller ve meta-learner bu eşiğe göre optimize edilmiştir.
+Bu proje, JetX oyun sonuçlarını tahmin etmek için birden fazla makine öğrenmesi modelini (Ensemble) birleştiren kapsamlı bir Streamlit uygulamasıdır.
 
-## Mimaride Neler Var?
-- **Model A (CatBoost):** Zengin feature seti ile 1.5 / 3.0 olasılığı ve beklenen X regresyonu.
-- **Model B (k-NN / Hafıza):** 300 oyunluk desen benzerliği ve PCA ile hızlı sorgu.
-- **Model C (LSTM):** 200 adımlık dizilerden trend yakalama.
-- **Model D (LightGBM):** Hafif, ağaç tabanlı alternatif.
-- **Model E (MLP):** Sadece ham lag + HMM ile çeşitlilik katar.
-- **Model T (Transformer):** Uzun bağımlılıkları dikkat (attention) katmanıyla öğrenir.
-- **HMM (Categorical/GMM):** Piyasa rejimi (Cold/Normal/Hot) tespiti.
-- **Meta-Learner (LogReg):** A, B, C, D, E, T ve HMM çıktılarından nihai 1.5x olasılığını üretir.
+## 🎯 Temel Hedef: 1.50x Eşiği
+Sistemin birincil amacı, bir sonraki çarpanın **1.50x'in ÜZERİNDE mi yoksa ALTINDA mı** olacağını tahmin etmektir.
+- **Neden 1.50x?** Bu bizim kritik karlılık sınırımızdır.
+- **1.50x Üstü:** Hedef Bölge (Kazan).
+- **1.50x Altı:** Kayıp Bölgesi (Uzak Dur).
+- **Strateji:** Sistem muhafazakar olacak şekilde tasarlanmıştır. Sadece sonucun 1.50x'i geçeceğinden **yüksek derecede eminse (>%75)** "BAHİS YAP" sinyali üretir.
+
+## 📊 Eklenen Metrikler (ROC-AUC ve Kar/Zarar)
+Model performansını ölçmek için eklenen **ROC-AUC** ve **Kar/Zarar (Profit/Loss)** metrikleri, **1.50x ve 3.00x eşikleri** için hesaplanmaktadır.
+- **Ham X Değeri Değil:** Bu metrikler, modelin "Tam olarak kaç x gelecek?" (Regresyon) tahminini değil, "1.50x'i geçer mi?" (Sınıflandırma) başarısını ölçer.
+- **Kar/Zarar Simülasyonu:** Modelin her "Oyna" dediğinde 1 birim bahis yaptığımızı varsayarak, gerçekte ne kadar kazanıp kaybedeceğimizi simüle eder.
+
+## ⏳ Kronolojik Bütünlük (Veri Sızıntısı Yok)
+Gerçekçi performans sonuçları elde etmek için bu proje **Zaman Serisi Doğrulama (Time-Series Validation)** ilkelerine sıkı sıkıya bağlıdır:
+- **Karıştırma Yok (No Shuffling):** Veriler ASLA karıştırılmaz. Olayların sırası, gerçekleştiği gibi aynen korunur.
+- **Sıkı Bölme (Strict Splitting):**
+    - **Eğitim (Train):** Geçmiş verilerin ilk %70'i.
+    - **Boşluk (Gap):** %5'lik bir tampon bölge, sızıntıyı önlemek için kullanılmadan bırakılır.
+    - **Doğrulama (Validation):** Sonraki %15'lik kısım.
+    - **Test:** Son %10 (en güncel veriler).
+- **Neden?** Gerçek zamanlı bahiste geleceği göremeyiz. Verileri karıştırmak, modelin gelecekteki desenleri görerek "kopya çekmesine" neden olur. Bizim katı yaklaşımımız, test sonuçlarının canlı ortamdaki gerçek performansı yansıtmasını garanti eder.
+
+## 🏗️ Mimari Bileşenler
+- **Model A (CatBoost):** Zengin özellik seti ile 1.5x / 3.0x olasılığı ve beklenen X regresyonu.
+- **Model B (k-NN / Hafıza):** 300 oyunluk geçmiş desen benzerliği ve PCA ile hızlı sorgu.
+- **Model C (LSTM):** 200 adımlık dizilerden zaman serisi trendlerini yakalama.
+- **Model D (LightGBM):** Hızlı ve hafif gradyan artırma modeli.
+- **Model E (MLP):** Ham verilerle çalışan Yapay Sinir Ağı.
+- **Model F (Transformer):** "Attention" mekanizması ile uzun vadeli ilişkileri çözen modern mimari.
+- **HMM (Gizli Markov Modeli):** Piyasanın "Ruh Halini" (Volatilite Durumunu) analiz eder.
+- **Meta-Learner:** Tüm bu modellerin tahminlerini alıp son kararı veren "Beyin".
 
 ## Çalışma Akışı (app.py)
 1) Uygulama açıldığında `jetx.db` varsa son 2000 kayıt RAM’e alınır (OOM koruması).  

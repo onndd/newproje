@@ -1,26 +1,17 @@
 import numpy as np
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 
-def detailed_evaluation(y_true, y_prob, threshold=0.5, model_name="Model", target_name="1.5x"):
+def detailed_evaluation(y_true, y_pred_proba, threshold=0.75):
     """
-    Prints detailed evaluation metrics including Confusion Matrix and Expected Value.
+    Prints detailed evaluation metrics including Confusion Matrix, Precision, Recall, F1, ROC-AUC, and Profit/Loss.
     """
-    y_pred = (y_prob >= threshold).astype(int)
     
+    y_pred = (y_pred_proba >= threshold).astype(int)
+    
+    print(f"--- Evaluation (Threshold: {threshold}) ---")
+    
+    # Confusion Matrix
     cm = confusion_matrix(y_true, y_pred)
-    tn, fp, fn, tp = cm.ravel()
-    
-    precision = tp / (tp + fp + 1e-9)
-    recall = tp / (tp + fn + 1e-9)
-    f1 = 2 * (precision * recall) / (precision + recall + 1e-9)
-    
-    print(f"\n--- {model_name} Evaluation ({target_name}) ---")
-    print(f"Threshold: {threshold}")
-    print(f"Confusion Matrix: [TN={tn}, FP={fp}, FN={fn}, TP={tp}]")
-    print(f"Precision: {precision:.4f}")
-    print(f"Recall: {recall:.4f}")
-    print(f"F1 Score: {f1:.4f}")
-    
     # Expected Value Calculation (Approximate)
     # Assuming 1 unit bet.
     # Cost of FP = -1 unit.

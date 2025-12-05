@@ -39,42 +39,7 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     # It only supports it for partial_fit.
     # Actually, recent versions DO support it. Let's assume standard sklearn environment.
     # If not supported, we might need to oversample manually.
-    # But let's check if we can use 'partial_fit' loop or just rely on the fact that we can't easily weight it.
-    # Alternative: Oversampling.
-    # Let's try passing it to fit, if it fails, we'll know. 
-    # Actually, checking sklearn docs: fit(X, y) does NOT take sample_weight.
-    # So we must manually oversample the minority class.
-    
-    # Let's implement simple oversampling for MLP
-    from sklearn.utils import resample
-    
-    # Combine X and y
-    X_t_p15 = X_t.copy()
-    X_t_p15['target'] = y_p15_t
-    
-    # Separate majority and minority classes
-    df_majority = X_t_p15[X_t_p15.target == 0]
-    df_minority = X_t_p15[X_t_p15.target == 1]
-    
-    # Upsample minority class
-    df_minority_upsampled = resample(df_minority, 
-                                     replace=True,     # sample with replacement
-                                     n_samples=len(df_majority),    # to match majority class
-                                     random_state=42) # reproducible results
-                                     
-    # Combine majority class with upsampled minority class
-    df_upsampled = pd.concat([df_majority, df_minority_upsampled])
-    
-    # Display new class counts
-    print(f"P1.5 Class Counts after Upsampling: {df_upsampled.target.value_counts()}")
-    
-    X_t_upsampled = df_upsampled.drop('target', axis=1)
-    y_p15_upsampled = df_upsampled.target.values
-    
-    clf_p15 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
-                            solver='adam', alpha=0.01, learning_rate_init=0.001,
-                            max_iter=500, early_stopping=True, verbose=True)
-    clf_p15.fit(X_t_upsampled, y_p15_upsampled)
+    clf_p15.fit(X_t, y_p15_t, sample_weight=sample_weight_p15)
     
     # P3.0 Model (Same logic)
     print("Training MLP (P3.0)...")
