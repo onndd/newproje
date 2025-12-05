@@ -112,30 +112,25 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     X_val = X_val.reshape((X_val.shape[0], X_val.shape[1], 1))
     
     # 4. Train
-    # Fix: Transformer has 2 outputs, so class_weight must be a dict mapping output names to weights
-    # or removed if using custom loss. Keras 'fit' expects a dict for multi-output models.
+    # 4. Train
+    # Fix: Use sample_weight instead of class_weight for multi-output model support
     
-    from sklearn.utils.class_weight import compute_class_weight
+    from sklearn.utils.class_weight import compute_sample_weight
     
-    # P1.5 Weights
-    classes_p15 = np.unique(y_p15_train)
-    weights_p15 = compute_class_weight(class_weight='balanced', classes=classes_p15, y=y_p15_train)
-    class_weight_p15 = dict(zip(classes_p15, weights_p15))
+    # P1.5 Sample Weights
+    sample_weight_p15 = compute_sample_weight(class_weight='balanced', y=y_p15_train)
     
-    # P3.0 Weights
-    classes_p3 = np.unique(y_p3_train)
-    weights_p3 = compute_class_weight(class_weight='balanced', classes=classes_p3, y=y_p3_train)
-    class_weight_p3 = dict(zip(classes_p3, weights_p3))
+    # P3.0 Sample Weights
+    sample_weight_p3 = compute_sample_weight(class_weight='balanced', y=y_p3_train)
     
-    # Combine into a single dictionary mapping output layer names to weight dicts
-    # Output names are defined in the model: 'p15' and 'p3'
-    class_weights = {
-        'p15': class_weight_p15,
-        'p3': class_weight_p3
+    # Combine into a dictionary mapping output layer names to sample weights
+    sample_weights = {
+        'p15': sample_weight_p15,
+        'p3': sample_weight_p3
     }
     
-    print(f"Transformer Class Weights: {class_weights}")
-
+    print("Computed sample weights for Transformer multi-output training.")
+    
     callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
     
     # Define Metrics
@@ -151,7 +146,7 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     model.fit(X_train, {'p15': y_p15_train, 'p3': y_p3_train}, 
               validation_data=(X_val, {'p15': y_p15_val, 'p3': y_p3_val}),
               epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1,
-              class_weight={'p15': class_weight_p15, 'p3': class_weight_p3})
+              sample_weight=sample_weights)
               
     # Detailed Reporting
     from sklearn.metrics import confusion_matrix, classification_report

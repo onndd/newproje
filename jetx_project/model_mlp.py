@@ -25,7 +25,7 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     y_p3_t, y_p3_val = y_p3_train[:split_idx], y_p3_train[split_idx:]
     
     # Compute Sample Weights for Class Balancing
-    # from sklearn.utils.class_weight import compute_sample_weight (Not supported in MLP fit)
+    from sklearn.utils.class_weight import compute_sample_weight
     
     # P1.5 Model
     print("Training MLP (P1.5)...")
