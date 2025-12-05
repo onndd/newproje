@@ -3,6 +3,7 @@ import lightgbm as lgb
 import numpy as np
 import os
 from sklearn.metrics import accuracy_score
+from .evaluation import detailed_evaluation
 
 def train_model_lightgbm(X_train, y_p15_train, y_p3_train):
     """

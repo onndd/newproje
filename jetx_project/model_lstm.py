@@ -47,7 +47,7 @@ def build_lstm_model(seq_length):
     model.compile(optimizer='adam', loss='binary_crossentropy', metrics=['accuracy'])
     return model
 
-def train_model_lstm(values, seq_length=200, epochs=20, batch_size=64):
+def train_model_lstm(values, seq_length=200, epochs=5, batch_size=128):
     """
     Trains LSTM models for P1.5 and P3 with NO DATA LEAKAGE.
     """
