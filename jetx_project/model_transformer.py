@@ -125,8 +125,11 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     # P3.0 Sample Weights
     sample_weight_p3 = compute_sample_weight(class_weight='balanced', y=y_p3_train)
     
-    # Keras çoklu çıktı için en güvenli kullanım: model çıktılarının sırasına uygun liste
-    sample_weights = [sample_weight_p15, sample_weight_p3]
+    # Keras çoklu çıktı için isimlere göre sample_weight sözlüğü
+    sample_weights = {
+        'p15': sample_weight_p15,
+        'p3': sample_weight_p3
+    }
     
     print("Computed sample weights for Transformer multi-output training.")
     
