@@ -37,7 +37,7 @@ def _ensure_table_exists(conn):
 
 def save_to_db(value, db_path=DB_PATH):
     """Saves the new result to the database, raising on failure."""
-    with sqlite3.connect(db_path) as conn:
+    with sqlite3.connect(db_path, timeout=30) as conn:
         _ensure_table_exists(conn)
         cursor = conn.cursor()
         cursor.execute("INSERT INTO jetx_results (value) VALUES (?)", (float(value),))
@@ -54,9 +54,12 @@ st.title("JetX AI Prediction System (Ensemble Powered)")
 def load_all_models():
     models = {}
     
+    # Fix: Use absolute path for model loading
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    
     # Model A
     try:
-        ma_p15, ma_p3, ma_x = load_models('.')
+        ma_p15, ma_p3, ma_x = load_models(current_dir)
         models['model_a'] = {'p15': ma_p15, 'p3': ma_p3, 'x': ma_x} if ma_p15 else None
     except Exception as e:
         st.error(f"Model A failed to load: {e}")
@@ -64,7 +67,7 @@ def load_all_models():
 
     # Model B
     try:
-        mb_nbrs, mb_pca, mb_pats, mb_targs = load_memory('.')
+        mb_nbrs, mb_pca, mb_pats, mb_targs = load_memory(current_dir)
         models['model_b'] = {'nbrs': mb_nbrs, 'pca': mb_pca, 'targs': mb_targs} if mb_nbrs else None
     except Exception as e:
         st.error(f"Model B failed to load: {e}")
@@ -72,7 +75,7 @@ def load_all_models():
 
     # Model C (LSTM)
     try:
-        mc_p15, mc_p3, mc_scaler = load_lstm_models('.')
+        mc_p15, mc_p3, mc_scaler = load_lstm_models(current_dir)
         models['model_c'] = {'p15': mc_p15, 'p3': mc_p3, 'scaler': mc_scaler} if mc_p15 else None
     except Exception as e:
         st.error(f"Model C (LSTM) failed to load: {e}")
@@ -80,7 +83,7 @@ def load_all_models():
 
     # Model D (LightGBM)
     try:
-        md_p15, md_p3 = load_lightgbm_models('.')
+        md_p15, md_p3 = load_lightgbm_models(current_dir)
         models['model_d'] = {'p15': md_p15, 'p3': md_p3} if md_p15 else None
     except Exception as e:
         st.error(f"Model D (LightGBM) failed to load: {e}")
@@ -88,7 +91,7 @@ def load_all_models():
 
     # Model E (MLP)
     try:
-        me_p15, me_p3, me_cols = load_mlp_models('.')
+        me_p15, me_p3, me_cols = load_mlp_models(current_dir)
         models['model_e'] = {'p15': me_p15, 'p3': me_p3, 'cols': me_cols} if me_p15 else None
     except Exception as e:
         st.error(f"Model E (MLP) failed to load: {e}")
@@ -96,7 +99,7 @@ def load_all_models():
 
     # HMM
     try:
-        hmm_model, hmm_map, hmm_bins = load_hmm_model('.')
+        hmm_model, hmm_map, hmm_bins = load_hmm_model(current_dir)
         models['hmm'] = {'model': hmm_model, 'map': hmm_map, 'bins': hmm_bins} if hmm_model else None
     except Exception as e:
         st.error(f"HMM model failed to load: {e}")
@@ -104,7 +107,7 @@ def load_all_models():
 
     # Meta Learner
     try:
-        meta_model, meta_scaler = load_meta_learner('.')
+        meta_model, meta_scaler = load_meta_learner(current_dir)
         models['meta'] = {'model': meta_model, 'scaler': meta_scaler} if meta_model else None
     except Exception as e:
         st.error(f"Meta Learner failed to load: {e}")
@@ -112,7 +115,7 @@ def load_all_models():
         
     # Transformer Model
     try:
-        mt_model, mt_scaler = load_transformer_models('.')
+        mt_model, mt_scaler = load_transformer_models(current_dir)
         models['transformer'] = {'model': mt_model, 'scaler': mt_scaler} if mt_model else None
     except Exception as e:
         st.error(f"Transformer Model failed to load: {e}")

@@ -93,6 +93,11 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         if len(preds_transformer) != n_samples:
             raise ValueError(f"Length mismatch in meta features: expected {n_samples}, got {len(preds_transformer)} for preds_transformer")
         feature_list.append(preds_transformer)
+    else:
+        # Fix: Add dummy column (neutral 0.5) to maintain shape for Meta-Learner
+        # The meta-learner was trained with this column, so it expects it.
+        dummy_transformer = np.full(n_samples, 0.5)
+        feature_list.append(dummy_transformer)
         
     feature_list.append(hmm_onehot)
     feature_list.append(bust_freq)

@@ -27,7 +27,8 @@ def create_pattern_vector(values, end_index, length=300):
     # We use log1p to handle large multipliers (e.g. 5000x) without them dominating,
     # while preserving the relative magnitude differences.
     # Normalized by log1p(1000) approx 6.9 to keep range roughly 0-1.
-    norm_window = np.log1p(window) / np.log1p(1000.0)
+    # Fix: Clip to [0, 1] to prevent distortion from high multipliers (>1000x)
+    norm_window = np.clip(np.log1p(window) / np.log1p(1000.0), 0, 1)
     
     # 2. Categorical IDs (Vectorized)
     from .categorization import get_set1_ids, get_set2_ids, get_set3_ids, get_set4_ids, get_set5_ids, get_set6_ids

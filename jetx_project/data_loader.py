@@ -12,7 +12,15 @@ def load_data(db_path=DB_PATH, limit=None):
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database file not found at: {db_path}")
 
-    with sqlite3.connect(db_path) as conn:
+    # Fix: Add timeout to prevent locking issues
+    with sqlite3.connect(db_path, timeout=30) as conn:
+        # Fix: Check if table exists first
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='jetx_results'")
+        if cursor.fetchone() is None:
+            # Table doesn't exist, return empty DataFrame
+            return pd.DataFrame(columns=['id', 'value'])
+
         if limit:
             # Use rowid to sort by insertion order efficiently
             # Assuming 'id' and 'value' are the columns of interest,
