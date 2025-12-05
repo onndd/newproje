@@ -43,28 +43,12 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     
     # P3.0 Model (Same logic)
     print("Training MLP (P3.0)...")
+    sample_weight_p3 = compute_sample_weight(class_weight='balanced', y=y_p3_t)
     
-    X_t_p3 = X_t.copy()
-    X_t_p3['target'] = y_p3_t
-    
-    df_majority_p3 = X_t_p3[X_t_p3.target == 0]
-    df_minority_p3 = X_t_p3[X_t_p3.target == 1]
-    
-    df_minority_upsampled_p3 = resample(df_minority_p3, 
-                                        replace=True,
-                                        n_samples=len(df_majority_p3),
-                                        random_state=42)
-                                        
-    df_upsampled_p3 = pd.concat([df_majority_p3, df_minority_upsampled_p3])
-    print(f"P3.0 Class Counts after Upsampling: {df_upsampled_p3.target.value_counts()}")
-    
-    X_t_upsampled_p3 = df_upsampled_p3.drop('target', axis=1)
-    y_p3_upsampled = df_upsampled_p3.target.values
-
     clf_p3 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
                            solver='adam', alpha=0.01, learning_rate_init=0.001,
                            max_iter=500, early_stopping=True, verbose=True)
-    clf_p3.fit(X_t_upsampled_p3, y_p3_upsampled)
+    clf_p3.fit(X_t, y_p3_t, sample_weight=sample_weight_p3)
     
     # Detailed Reporting
     from sklearn.metrics import confusion_matrix, classification_report
