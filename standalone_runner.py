@@ -16,7 +16,7 @@ from jetx_project.model_b import build_memory, train_model_b, save_memory
 from jetx_project.model_lstm import train_model_lstm, save_lstm_models
 from jetx_project.model_lightgbm import train_model_lightgbm, save_lightgbm_models
 from jetx_project.model_mlp import train_model_mlp, save_mlp_models
-from jetx_project.model_hmm import train_hmm_model, save_hmm_model, predict_categorical_hmm_states
+from jetx_project.model_hmm import train_categorical_hmm, save_hmm_model, predict_categorical_hmm_states
 from jetx_project.model_transformer import train_model_transformer, save_transformer_models
 from jetx_project.ensemble import prepare_meta_features, train_meta_learner, save_meta_learner
 from jetx_project.simulation import run_simulation
@@ -39,8 +39,9 @@ def main():
         return
 
     # 2. Train HMM (First, as others need states)
-    print("\n[2/9] Training HMM...")
-    hmm_model, hmm_map, hmm_bins = train_hmm_model(values)
+    print("\n[2/9] Training HMM (Categorical)...")
+    # Fix: Use train_categorical_hmm to match the 3 return values expected (model, map, bins)
+    hmm_model, hmm_map, hmm_bins = train_categorical_hmm(values)
     save_hmm_model(hmm_model, hmm_map, hmm_bins, output_dir='models_standalone')
     
     # Predict states for all data
