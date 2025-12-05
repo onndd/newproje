@@ -78,6 +78,7 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     
     # Ensure value is float
     values = df['value'].astype(float)
+    log_values = np.log1p(values)
     
     # 1. Rolling Window Features (Set Ratios)
     new_features = {}
@@ -136,16 +137,20 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     # (Value - 0.97) rolling sum
     new_features['rtp_balance_500'] = (values - 0.97).rolling(500).sum().shift(1)
     
-    # 4. Volatility & Chop (Vectorized)
+    # 4. Rolling Median (Noise Filter)
+    new_features['rolling_median_20'] = values.rolling(20).median().shift(1)
+    
+    # 5. Volatility & Chop (Vectorized)
     vol_w = 20
     new_features['volatility_last_20'] = values.rolling(vol_w).std().shift(1)
+    new_features['volatility_log_20'] = log_values.rolling(vol_w).std().shift(1)
     
     # Chop Index: Sum of absolute diffs of binary color / window size
     is_green = (values >= 1.5).astype(int)
     changes = is_green.diff().abs()
     new_features['chop_index_20'] = changes.rolling(vol_w).sum().shift(1) / vol_w
     
-    # 5. Shockwave (Games Since Big X)
+    # 6. Shockwave (Games Since Big X)
     # Break condition: val >= 10.0
     mask_big = (values >= 10.0)
     last_big_idx = pd.Series(np.where(mask_big, df.index, np.nan), index=df.index).ffill().shift(1) # SAFETY: shift(1) prevents look-ahead
@@ -159,6 +164,14 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     new_features['last_big_x_val'] = values.where(mask_big).ffill().shift(1).fillna(0.0)
     
     new_features['is_aftershock'] = (new_features['games_since_big_x'] <= 50).astype(float)
+    
+    # 6b. Huge Shock (>=100x)
+    mask_huge = (values >= 100.0)
+    last_huge_idx = pd.Series(np.where(mask_huge, df.index, np.nan), index=df.index).ffill().shift(1)
+    new_features['games_since_huge_x'] = (df.index - last_huge_idx).fillna(200)
+    
+    # 7. Instant Bust Flag (<=1.05)
+    new_features['is_instant_bust'] = (values <= 1.05).shift(1).fillna(0.0).astype(float)
     
     # 6. Long Streak (>=8) Analysis (Vectorized)
     # We need to find the end index of the last streak >= 8.

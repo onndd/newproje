@@ -35,36 +35,83 @@ def test_data_loader_limit():
     print("Data loader limit test passed.")
 
 def test_graceful_degradation():
+    """
+    Ensures load_all_models tolerates missing model files and returns a dict with None entries.
+    """
     # Mock streamlit
     sys.modules['streamlit'] = MagicMock()
     import streamlit as st
     st.cache_resource = lambda func: func
     st.error = MagicMock()
+    st.warning = MagicMock()
+    st.success = MagicMock()
+    st.title = MagicMock()
+    st.set_page_config = MagicMock()
+    st.number_input = MagicMock(return_value=1.0)
+    st.button = MagicMock(return_value=False)
+    st.write = MagicMock()
+    st.metric = MagicMock()
+    st.subheader = MagicMock()
+    st.columns = MagicMock(return_value=[MagicMock(), MagicMock(), MagicMock()])
+    class SessionState(dict):
+        def __getattr__(self, item):
+            try:
+                return self[item]
+            except KeyError as exc:
+                raise AttributeError(item) from exc
+        def __setattr__(self, key, value):
+            self[key] = value
+    st.session_state = SessionState()
+    st.stop = MagicMock()
     
     # Mock model loading functions to fail
-    sys.modules['jetx_project.model_a'] = MagicMock()
-    sys.modules['jetx_project.model_a'].load_models = MagicMock(side_effect=Exception("Model A missing"))
+    mock_model_a = MagicMock()
+    mock_model_a.load_models = MagicMock(side_effect=Exception("Model A missing"))
+    mock_model_a.prepare_model_a_data = MagicMock()
+    sys.modules['jetx_project.model_a'] = mock_model_a
+    # Stub other model modules to avoid heavy deps during import
+    mock_model_b = MagicMock()
+    mock_model_b.load_memory = MagicMock(return_value=(None, None, None, None))
+    mock_model_b.create_pattern_vector = MagicMock()
+    mock_model_b.predict_model_b = MagicMock()
+    sys.modules['jetx_project.model_b'] = mock_model_b
     
-    # Import app (will trigger load_all_models if we call it)
-    # But app.py runs on import, so we need to be careful.
-    # Instead, let's just import the function if possible or mock the whole app structure.
-    # Since app.py is a script, importing it might run it.
-    # Let's just define a mock load_all_models similar to app.py and test the logic?
-    # No, better to test the actual function.
-    # We can read app.py and exec the function definition.
+    mock_model_lstm = MagicMock()
+    mock_model_lstm.load_lstm_models = MagicMock(return_value=(None, None, None))
+    mock_model_lstm.create_sequences = MagicMock()
+    sys.modules['jetx_project.model_lstm'] = mock_model_lstm
     
-    with open('app.py', 'r') as f:
-        code = f.read()
+    mock_model_lightgbm = MagicMock()
+    mock_model_lightgbm.load_lightgbm_models = MagicMock(return_value=(None, None))
+    sys.modules['jetx_project.model_lightgbm'] = mock_model_lightgbm
     
-    # Extract load_all_models function code
-    # This is a bit hacky but safer than importing app.py which has side effects
-    # Actually, we can just check if we can import load_all_models from app
-    # app.py has `if __name__ == '__main__':`? No, streamlit apps usually don't.
-    # app.py code runs immediately.
+    mock_model_mlp = MagicMock()
+    mock_model_mlp.load_mlp_models = MagicMock(return_value=(None, None, None))
+    sys.modules['jetx_project.model_mlp'] = mock_model_mlp
     
-    # Let's verify the logic by visual inspection of the code we wrote.
-    # Or simpler: create a small script that imports `load_all_models` after mocking everything.
-    pass
+    mock_model_hmm = MagicMock()
+    mock_model_hmm.load_hmm_model = MagicMock(return_value=(None, None, None))
+    mock_model_hmm.predict_hmm_state = MagicMock()
+    sys.modules['jetx_project.model_hmm'] = mock_model_hmm
+    
+    mock_ensemble = MagicMock()
+    mock_ensemble.load_meta_learner = MagicMock(return_value=(None, None))
+    mock_ensemble.prepare_meta_features = MagicMock()
+    mock_ensemble.predict_meta = MagicMock()
+    sys.modules['jetx_project.ensemble'] = mock_ensemble
+    
+    mock_transformer = MagicMock()
+    mock_transformer.load_transformer_models = MagicMock(return_value=(None, None))
+    sys.modules['jetx_project.model_transformer'] = mock_transformer
+    
+    import importlib
+    app_module = importlib.import_module('app')
+    
+    models = app_module.load_all_models()
+    
+    assert isinstance(models, dict), "load_all_models should return a dict even on failures"
+    assert 'model_a' in models, "models dict must contain model_a key"
+    assert models['model_a'] is None, "model_a should degrade to None when load fails"
 
 if __name__ == "__main__":
     create_dummy_db()

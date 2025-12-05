@@ -12,8 +12,7 @@ def load_data(db_path=DB_PATH, limit=None):
     if not os.path.exists(db_path):
         raise FileNotFoundError(f"Database file not found at: {db_path}")
 
-    conn = sqlite3.connect(db_path)
-    try:
+    with sqlite3.connect(db_path) as conn:
         if limit:
             # Use rowid to sort by insertion order efficiently
             # Assuming 'id' and 'value' are the columns of interest,
@@ -29,8 +28,6 @@ def load_data(db_path=DB_PATH, limit=None):
         else:
             query = "SELECT id, value FROM jetx_results ORDER BY id ASC"
             df = pd.read_sql_query(query, conn)
-    finally:
-        conn.close()
     
     # Ensure 'value' is numeric (float), handle potential string issues
     df['value'] = pd.to_numeric(df['value'], errors='coerce')

@@ -296,39 +296,44 @@ if st.button("Add Result & Predict"):
             hmm_states = predict_categorical_hmm_states(hmm_model, hmm_input, hmm_map, bins=hmm_bins)
             current_state = hmm_states[-1]
         else:
-            current_state = 1 # Default
+            current_state = None
             
     except Exception as e:
         st.error(f"HMM Error: {e}")
-        st.warning("⚠️ Piyasa rejimi tespit edilemedi, varsayılan mod (Normal) kullanılıyor.")
-        current_state = 1 # Default to Normal
+        st.warning("⚠️ Piyasa rejimi tespit edilemedi, güvenlik modu devrede.")
+        current_state = None
         
     # --- ENSEMBLE PREDICTION ---
     # Prepare Meta Features
     # Fix: Handle None values by replacing them with 0.5 (neutral) for the meta-learner
     # The meta-learner expects numeric inputs, not None.
-    meta_X = prepare_meta_features(
-        np.array([probs['A'] if probs['A'] is not None else 0.5]),
-        np.array([probs['B'] if probs['B'] is not None else 0.5]),
-        np.array([probs['C'] if probs['C'] is not None else 0.5]),
-        np.array([probs['D'] if probs['D'] is not None else 0.5]),
-        np.array([probs['E'] if probs['E'] is not None else 0.5]),
-        np.array([current_state]),
-        np.array([100.0]), # Placeholder for bust_freq if not calculated
-        preds_transformer=np.array([probs['T'] if probs['T'] is not None else 0.5]) if probs['T'] is not None else None
-    )
-    
-    if models.get('meta'):
-        final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
+    real_history = np.array(st.session_state.history[-250:]) if st.session_state.history else np.array([])
+    if current_state is None:
+        st.error("Piyasa rejimi tespit edilemediği için tahmin sistemi güvenlik moduna geçti.")
+        final_prob = 0.0
     else:
-        # Simple average if meta learner missing
-        # Fix: Filter out None values to avoid bias
-        available_probs = [p for p in probs.values() if p is not None]
-        if available_probs:
-            final_prob = np.mean(available_probs)
+        meta_X = prepare_meta_features(
+            np.array([probs['A'] if probs['A'] is not None else 0.5]),
+            np.array([probs['B'] if probs['B'] is not None else 0.5]),
+            np.array([probs['C'] if probs['C'] is not None else 0.5]),
+            np.array([probs['D'] if probs['D'] is not None else 0.5]),
+            np.array([probs['E'] if probs['E'] is not None else 0.5]),
+            np.array([current_state]),
+            values=real_history,
+            preds_transformer=np.array([probs['T'] if probs['T'] is not None else 0.5]) if probs['T'] is not None else None
+        )
+        
+        if models.get('meta'):
+            final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
         else:
-            st.error("Hiçbir model tahmin üretemedi!")
-            final_prob = 0.0
+            # Simple average if meta learner missing
+            # Fix: Filter out None values to avoid bias
+            available_probs = [p for p in probs.values() if p is not None]
+            if available_probs:
+                final_prob = np.mean(available_probs)
+            else:
+                st.error("Hiçbir model tahmin üretemedi!")
+                final_prob = 0.0
     
     # --- Display Results ---
     col1, col2, col3 = st.columns(3)
