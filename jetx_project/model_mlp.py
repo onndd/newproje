@@ -25,11 +25,11 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     y_p3_t, y_p3_val = y_p3_train[:split_idx], y_p3_train[split_idx:]
     
     # Compute Sample Weights for Class Balancing
-    from sklearn.utils.class_weight import compute_sample_weight
+    # from sklearn.utils.class_weight import compute_sample_weight (Not supported in MLP fit)
     
     # P1.5 Model
     print("Training MLP (P1.5)...")
-    sample_weight_p15 = compute_sample_weight(class_weight='balanced', y=y_p15_t)
+    # sample_weight_p15 = compute_sample_weight(class_weight='balanced', y=y_p15_t)
     
     clf_p15 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
                             solver='adam', alpha=0.01, learning_rate_init=0.001,
@@ -39,16 +39,17 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     # It only supports it for partial_fit.
     # Actually, recent versions DO support it. Let's assume standard sklearn environment.
     # If not supported, we might need to oversample manually.
-    clf_p15.fit(X_t, y_p15_t, sample_weight=sample_weight_p15)
+    # Removed sample_weight as MLPClassifier.fit does not support it
+    clf_p15.fit(X_t, y_p15_t)
     
     # P3.0 Model (Same logic)
     print("Training MLP (P3.0)...")
-    sample_weight_p3 = compute_sample_weight(class_weight='balanced', y=y_p3_t)
+    # sample_weight removed
     
     clf_p3 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
                            solver='adam', alpha=0.01, learning_rate_init=0.001,
                            max_iter=500, early_stopping=True, verbose=True)
-    clf_p3.fit(X_t, y_p3_t, sample_weight=sample_weight_p3)
+    clf_p3.fit(X_t, y_p3_t)
     
     # Detailed Reporting
     from sklearn.metrics import confusion_matrix, classification_report
