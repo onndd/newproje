@@ -30,7 +30,7 @@ def detailed_evaluation(y_true, y_pred_proba, model_name="Model", threshold=0.75
         except:
             print("ROC-AUC: N/A")
 
-        # Profit Calculation
+    # Profit Calculation
         if tp + fp > 0:
             if "1.5" in model_name or "P1.5" in model_name:
                 profit = (tp * 0.5) - (fp * 1.0)
@@ -43,6 +43,26 @@ def detailed_evaluation(y_true, y_pred_proba, model_name="Model", threshold=0.75
             print(f"Win Rate (on bets): {tp / (tp + fp):.2%}")
         else:
             print("Model made NO bets at this threshold.")
+            
+        print(f"False Alarms (FP - Money Lost): {fp}")
+        print(f"Missed Opportunities (FN - Profit Lost): {fn}")
+
+        # Confidence Histogram
+        try:
+            import matplotlib.pyplot as plt
+            import seaborn as sns
+            
+            plt.figure(figsize=(10, 4))
+            sns.histplot(y_pred_proba, bins=20, kde=True, color='skyblue')
+            plt.axvline(x=threshold, color='red', linestyle='--', label=f'Threshold ({threshold})')
+            plt.title(f'{model_name} Confidence Distribution')
+            plt.xlabel('Predicted Probability')
+            plt.ylabel('Count')
+            plt.legend()
+            plt.show()
+            print("Confidence Histogram displayed.")
+        except Exception as e:
+            print(f"Could not plot histogram: {e}")
             
         return {"TP": tp, "FP": fp, "TN": tn, "FN": fn, "Precision": precision, "Recall": recall}
     else:
