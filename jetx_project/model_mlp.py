@@ -61,8 +61,8 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     df_0 = X_t_p15[X_t_p15.target == 0]
     df_1 = X_t_p15[X_t_p15.target == 1]
     
-    # Duplicate Class 0 samples 2 times
-    df_0_upsampled = pd.concat([df_0] * 2)
+    # Duplicate Class 0 samples 1.5x (reduce false alarms)
+    df_0_upsampled = pd.concat([df_0, df_0.sample(frac=0.5, replace=True)])
     
     df_upsampled = pd.concat([df_0_upsampled, df_1])
     X_t_final = df_upsampled.drop('target', axis=1)
@@ -81,8 +81,8 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     df_0_p3 = X_t_p3[X_t_p3.target == 0]
     df_1_p3 = X_t_p3[X_t_p3.target == 1]
     
-    # Duplicate Class 0 samples 2 times
-    df_0_upsampled_p3 = pd.concat([df_0_p3] * 2)
+    # Duplicate Class 0 samples 1.5x
+    df_0_upsampled_p3 = pd.concat([df_0_p3, df_0_p3.sample(frac=0.5, replace=True)])
     
     df_upsampled_p3 = pd.concat([df_0_upsampled_p3, df_1_p3])
     X_t_final_p3 = df_upsampled_p3.drop('target', axis=1)

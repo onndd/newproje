@@ -75,11 +75,12 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
         'depth': 6, # Reduced from 10 to 6
         'l2_leaf_reg': 9, # Increased regularization
         'loss_function': 'Logloss',
-        'eval_metric': 'Accuracy',
+        'eval_metric': 'AUC',
         'random_seed': 42,
         'verbose': 100,
-        'early_stopping_rounds': 100,
-        'class_weights': {0: 2.0, 1: 1.0}
+        'early_stopping_rounds': 150,
+        # Sınıf 0 ağırlığını yumuşattık, aşırı çekingenliği azaltmak için
+        'class_weights': {0: 1.3, 1: 1.0}
     }
     model_p15 = CatBoostClassifier(**params)
     model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))
