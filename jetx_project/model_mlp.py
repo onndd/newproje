@@ -29,69 +29,20 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     
     # P1.5 Model
     print("Training MLP (P1.5)...")
-    # Custom Penalty: Penalize False Positives (Class 0) more heavily
-    # We want the model to be afraid of predicting 1 when it's actually 0.
-    # So we increase the weight of Class 0.
-    
-    classes_p15 = np.unique(y_p15_t)
-    weights_p15 = compute_sample_weight(class_weight='balanced', y=y_p15_t)
-    
-    # Identify indices where target is 0 and boost their weight
-    # Assuming y_p15_t is numpy array or pandas series
-    indices_0 = np.where(y_p15_t == 0)[0]
-    weights_p15[indices_0] *= 2.0 # Double the penalty for missing a crash
-    
-    print("Applied 2.0x penalty multiplier to Class 0 (Crash) samples.")
-    
+    # Örnekleri çoğaltmak yerine class_weight ile denge sağla
     clf_p15 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
                             solver='adam', alpha=0.01, learning_rate_init=0.001,
                             max_iter=500, early_stopping=True, verbose=True)
-    # Removed sample_weight as MLPClassifier.fit does not support it
-    # Wait, if fit doesn't support sample_weight, we can't use this method directly for MLP!
-    # Scikit-learn MLPClassifier ONLY supports sample_weight in partial_fit, OR in fit() for version >= 0.24?
-    # Let's check environment. If user got TypeError, it means it's NOT supported.
-    
-    # Alternative: Oversampling Class 0 manually.
-    # Since we cannot pass sample_weight, we must duplicate Class 0 samples.
-    
-    print("Oversampling Class 0 to enforce penalty...")
-    X_t_p15 = X_t.copy()
-    X_t_p15['target'] = y_p15_t
-    
-    df_0 = X_t_p15[X_t_p15.target == 0]
-    df_1 = X_t_p15[X_t_p15.target == 1]
-    
-    # Duplicate Class 0 samples 1.5x (reduce false alarms)
-    df_0_upsampled = pd.concat([df_0, df_0.sample(frac=0.5, replace=True)])
-    
-    df_upsampled = pd.concat([df_0_upsampled, df_1])
-    X_t_final = df_upsampled.drop('target', axis=1)
-    y_t_final = df_upsampled.target.values
-    
-    clf_p15.fit(X_t_final, y_t_final)
+    clf_p15.fit(X_t, y_p15_t, class_weight={0: 2.0, 1: 1.0})
     
     # P3.0 Model (Same logic)
     print("Training MLP (P3.0)...")
-    # sample_weight removed
-    
-    # Apply Oversampling for Class 0 (Penalty)
-    X_t_p3 = X_t.copy()
-    X_t_p3['target'] = y_p3_t
-    
-    df_0_p3 = X_t_p3[X_t_p3.target == 0]
-    df_1_p3 = X_t_p3[X_t_p3.target == 1]
-    
-    # Duplicate Class 0 samples 1.5x
-    df_0_upsampled_p3 = pd.concat([df_0_p3, df_0_p3.sample(frac=0.5, replace=True)])
-    
-    df_upsampled_p3 = pd.concat([df_0_upsampled_p3, df_1_p3])
-    X_t_final_p3 = df_upsampled_p3.drop('target', axis=1)
-    y_t_final_p3 = df_upsampled_p3.target.values
-    
+    # P3.0 Model (class_weight ile denge)
+    print("Training MLP (P3.0)...")
     clf_p3 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
                            solver='adam', alpha=0.01, learning_rate_init=0.001,
                            max_iter=500, early_stopping=True, verbose=True)
-    clf_p3.fit(X_t_final_p3, y_t_final_p3)
+    clf_p3.fit(X_t, y_p3_t, class_weight={0: 1.0, 1: 2.0})
     
     # Detailed Reporting
     from sklearn.metrics import confusion_matrix, classification_report

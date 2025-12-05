@@ -242,6 +242,39 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     last_not_med_idx = pd.Series(np.where(mask_not_med, df.index, np.nan), index=df.index).ffill().shift(1)
     new_features['medium_win_streak'] = df.index - last_not_med_idx
     new_features['medium_win_streak'] = new_features['medium_win_streak'].fillna(0.0)
+
+    # 8. Teknik İndikatörler (log_values üzerinden)
+    delta = log_values.diff()
+    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    rs = gain / loss
+    new_features['rsi_14'] = (100 - (100 / (1 + rs))).shift(1).fillna(50)
+
+    # Bollinger Bantları (20)
+    sma_20 = log_values.rolling(window=20).mean()
+    std_20 = log_values.rolling(window=20).std()
+    upper_band = sma_20 + (std_20 * 2)
+    lower_band = sma_20 - (std_20 * 2)
+    percent_b = (log_values - lower_band) / (upper_band - lower_band)
+    new_features['bb_percent_b'] = percent_b.shift(1).fillna(0.5)
+    new_features['bb_width'] = (upper_band - lower_band).shift(1).fillna(0)
+
+    # MACD (12,26,9)
+    ema_12 = log_values.ewm(span=12, adjust=False).mean()
+    ema_26 = log_values.ewm(span=26, adjust=False).mean()
+    macd_line = ema_12 - ema_26
+    signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    new_features['macd_hist'] = (macd_line - signal_line).shift(1).fillna(0)
+
+    # 9. Gelişmiş Frekans Özellikleri
+    is_over_2 = (values >= 2.00).astype(int)
+    new_features['freq_over_2_last_20'] = is_over_2.rolling(20).sum().shift(1).fillna(0)
+
+    is_over_10 = (values >= 10.00).astype(int)
+    new_features['freq_over_10_last_50'] = is_over_10.rolling(50).sum().shift(1).fillna(0)
+
+    is_crash = (values <= 1.10).astype(int)
+    new_features['freq_crash_last_20'] = is_crash.rolling(20).sum().shift(1).fillna(0)
     
     # Concatenate all new features at once (Optimized)
     df_new = pd.DataFrame(new_features, index=df.index)

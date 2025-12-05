@@ -1,8 +1,8 @@
 import numpy as np
 import joblib
 import os
-from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+from catboost import CatBoostClassifier
 
 from .model_anomaly import check_anomaly
 
@@ -92,17 +92,25 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
 
 def train_meta_learner(meta_features, y_true):
     """
-    Trains a Logistic Regression meta-learner.
+    Trains a CatBoost meta-learner (gradient boosting) instead of Logistic Regression.
     """
-    # Scale features (important for Logistic Regression)
+    # Özellikleri tutarlılık için ölçekliyoruz (CatBoost şart koşmuyor ama normalize ediyoruz)
     scaler = StandardScaler()
     meta_features_scaled = scaler.fit_transform(meta_features)
     
-    # Logistic Regression with L2 regularization
-    # We want calibrated probabilities, so we use Logistic Regression
-    meta_model = LogisticRegression(C=1.0, penalty='l2', solver='lbfgs', random_state=42)
+    print("Training Meta-Learner (CatBoost)...")
+    meta_model = CatBoostClassifier(
+        iterations=1000,
+        learning_rate=0.03,
+        depth=4,
+        loss_function='Logloss',
+        eval_metric='AUC',
+        verbose=100,
+        early_stopping_rounds=50,
+        allow_writing_files=False,
+        random_seed=42
+    )
     meta_model.fit(meta_features_scaled, y_true)
-    
     return meta_model, scaler
 
 def save_meta_learner(model, scaler, output_dir='.'):
