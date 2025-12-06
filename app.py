@@ -199,11 +199,32 @@ if st.button("Add Result & Predict"):
         'A': None, 'B': None, 'C': None, 'D': None, 'E': None, 'T': None
     }
     
+    # --- HMM State (causal, early) ---
+    try:
+        hmm_window = 500
+        hmm_input = history_arr[-hmm_window:] if len(history_arr) > hmm_window else history_arr
+        from jetx_project.model_hmm import predict_categorical_hmm_states_causal
+        if models.get('hmm'):
+            hmm_model = models['hmm']['model']
+            hmm_map = models['hmm']['map']
+            hmm_bins = models['hmm']['bins']
+            hmm_states = predict_categorical_hmm_states_causal(hmm_model, hmm_input, hmm_map, bins=hmm_bins, window_size=200)
+            current_state = hmm_states[-1] if len(hmm_states) > 0 else None
+        else:
+            current_state = None
+    except Exception as e:
+        st.error(f"HMM Error: {e}")
+        st.warning("⚠️ Piyasa rejimi tespit edilemedi, güvenlik modu devrede.")
+        current_state = None
+    if current_state is None:
+        current_state = 1  # neutral fallback
+
     # --- Feature Extraction ---
     if len(history_arr) >= 500:
         try:
             feats = extract_features(history_arr, current_idx)
             feats_df = pd.DataFrame([feats])
+            feats_df['hmm_state'] = current_state
             
             # Model A
             if models.get('model_a'):
@@ -243,13 +264,10 @@ if st.button("Add Result & Predict"):
             mc_scaler = models['model_c']['scaler']
             
             seq_len = 200
-            # Get last seq_len values
             last_seq = history_arr[-seq_len:]
-            # FIX: Apply Log Transform first
             last_seq_log = np.log1p(last_seq)
-            # Scale and Clip
             last_seq_scaled = mc_scaler.transform(last_seq_log.reshape(-1, 1))
-            last_seq_scaled = np.clip(last_seq_scaled, 0, 1) # Ensure within bounds
+            last_seq_scaled = np.clip(last_seq_scaled, 0, 1)
             X_lstm = last_seq_scaled.reshape(1, seq_len, 1)
             probs['C'] = mc_p15.predict(X_lstm)[0][0]
         except Exception as e:
@@ -269,7 +287,6 @@ if st.button("Add Result & Predict"):
             X_transformer = last_seq_scaled.reshape(1, seq_len, 1)
 
             preds_t = mt_model.predict(X_transformer)
-            # Keras may return [p15, p3] list or a single array; we only need 1.5x head
             if isinstance(preds_t, (list, tuple)) and len(preds_t) > 0:
                 transformer_prob = float(np.ravel(preds_t[0])[0])
             else:
@@ -278,65 +295,31 @@ if st.button("Add Result & Predict"):
         except Exception as e:
             st.error(f"Transformer Model Error: {e}")
             
-    # --- HMM State ---
-    try:
-        # Predict state using CategoricalHMM
-        # Ideally we just need the last state, but HMM is sequential.
-        # For speed, we can take a recent window if history is huge.
-        hmm_window = 500
-        if len(history_arr) > hmm_window:
-            hmm_input = history_arr[-hmm_window:]
-        else:
-            hmm_input = history_arr
-            
-        # Use CategoricalHMM prediction
-        from jetx_project.model_hmm import predict_categorical_hmm_states_causal
-        
-        if models.get('hmm'):
-            hmm_model = models['hmm']['model']
-            hmm_map = models['hmm']['map']
-            hmm_bins = models['hmm']['bins']
-            hmm_states = predict_categorical_hmm_states_causal(hmm_model, hmm_input, hmm_map, bins=hmm_bins, window_size=200)
-            current_state = hmm_states[-1] if len(hmm_states) > 0 else None
-        else:
-            current_state = None
-            
-    except Exception as e:
-        st.error(f"HMM Error: {e}")
-        st.warning("⚠️ Piyasa rejimi tespit edilemedi, güvenlik modu devrede.")
-        current_state = None
-        
     # --- ENSEMBLE PREDICTION ---
     # Prepare Meta Features
     # Fix: Handle None values by replacing them with 0.5 (neutral) for the meta-learner
     # The meta-learner expects numeric inputs, not None.
     real_history = np.array(st.session_state.history[-250:]) if st.session_state.history else np.array([])
-    if current_state is None:
-        # HMM yoksa nötr state ile devam et (agresif fail-safe yerine)
-        current_state = 1  # Neutral/Normal
+    meta_X = prepare_meta_features(
+        np.array([probs['A'] if probs['A'] is not None else 0.5]),
+        np.array([probs['B'] if probs['B'] is not None else 0.5]),
+        np.array([probs['C'] if probs['C'] is not None else 0.5]),
+        np.array([probs['D'] if probs['D'] is not None else 0.5]),
+        np.array([probs['E'] if probs['E'] is not None else 0.5]),
+        np.array([current_state]),
+        values=real_history,
+        preds_transformer=np.array([probs['T'] if probs['T'] is not None else 0.5]) if probs['T'] is not None else None
+    )
+    
+    if models.get('meta'):
+        final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
     else:
-        meta_X = prepare_meta_features(
-            np.array([probs['A'] if probs['A'] is not None else 0.5]),
-            np.array([probs['B'] if probs['B'] is not None else 0.5]),
-            np.array([probs['C'] if probs['C'] is not None else 0.5]),
-            np.array([probs['D'] if probs['D'] is not None else 0.5]),
-            np.array([probs['E'] if probs['E'] is not None else 0.5]),
-            np.array([current_state]),
-            values=real_history,
-            preds_transformer=np.array([probs['T'] if probs['T'] is not None else 0.5]) if probs['T'] is not None else None
-        )
-        
-        if models.get('meta'):
-            final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
+        available_probs = [p for p in probs.values() if p is not None]
+        if available_probs:
+            final_prob = np.mean(available_probs)
         else:
-            # Simple average if meta learner missing
-            # Fix: Filter out None values to avoid bias
-            available_probs = [p for p in probs.values() if p is not None]
-            if available_probs:
-                final_prob = np.mean(available_probs)
-            else:
-                st.error("Hiçbir model tahmin üretemedi!")
-                final_prob = 0.0
+            st.error("Hiçbir model tahmin üretemedi!")
+            final_prob = 0.0
     
     # --- Display Results ---
     col1, col2, col3 = st.columns(3)

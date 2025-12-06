@@ -154,68 +154,20 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     # 7. Instant Bust Flag (<=1.05)
     new_features['is_instant_bust'] = (values <= 1.05).shift(1).fillna(0.0).astype(float)
     
-    # 6. Long Streak (>=8) Analysis (Vectorized)
-    # We need to find the end index of the last streak >= 8.
-    
+    # 6. Long Streak (>=8) Analysis (Causal)
     # Create binary color series (0: Red, 1: Green)
     colors = (values >= 1.5).astype(int)
-    
-    # Identify runs using diff
-    # 1 where change occurs
-    change_mask = colors.diff().ne(0)
-    # Cumulative sum gives group IDs for consecutive runs
-    run_ids = change_mask.cumsum()
-    
-    # Calculate length of each run
-    # Group by run_id and count
-    run_lengths = colors.groupby(run_ids).transform('count')
-    
-    # Mark indices where a long streak ENDS
-    # A streak ends at the last index of the group.
-    # We want to know if the group it belongs to has length >= 8.
-    # And we only care about the end of it.
-    
-    # Shift run_ids to find end of runs (where next is different)
-    # or just use the fact that we have run_lengths aligned.
-    
-    # We want to find indices 'i' such that:
-    # 1. The run ending at 'i' has length >= 8.
-    
-    # Let's find the end indices of runs.
-    # A run ends where the NEXT value is different (change_mask is True at i+1)
-    # or it's the last element.
-    
-    # Actually, simpler:
-    # Mark all positions that are part of a long streak
-    is_long_streak = (run_lengths >= 8)
-    
-    # We want "Games Since Last Long Streak ENDED".
-    # So we want the index of the last time `is_long_streak` was True AND the streak ended.
-    
-    # Find end of runs
-    # Shift(-1) of run_ids != run_ids
-    run_ends = (run_ids != run_ids.shift(-1))
-    
-    # Mask for "End of a Long Streak"
-    long_streak_end_mask = is_long_streak & run_ends
-    
-    # Now find distance to last True in long_streak_end_mask
-    last_long_streak_end_idx = pd.Series(np.where(long_streak_end_mask, df.index, np.nan), index=df.index).ffill().shift(1)
-    
-    new_features['games_since_long_streak'] = df.index - last_long_streak_end_idx
-    new_features['games_since_long_streak'] = new_features['games_since_long_streak'].fillna(200.0)
-    
-    # Type and Length of that last streak
-    # We can fetch values using the index
-    # We need to handle NaNs carefully.
-    
-    # Create a series for type and len at the end index
-    streak_types = colors.where(long_streak_end_mask) + 1 # 1: Red, 2: Green
-    streak_lens = run_lengths.where(long_streak_end_mask)
-    
-    # Propagate these values forward
-    new_features['last_long_streak_type'] = streak_types.ffill().shift(1).fillna(0.0)
-    new_features['last_long_streak_len'] = streak_lens.ffill().shift(1).fillna(0.0)
+    # Run breaks (cumulative change points)
+    run_breaks = colors.ne(colors.shift()).cumsum()
+    # Streak length up to current point
+    streak_len = colors.groupby(run_breaks).cumcount() + 1
+    streak_len_prev = streak_len.shift(1).fillna(0)
+    # Long streak ended at previous step?
+    long_streak_end = (streak_len_prev >= 8) & colors.ne(colors.shift())
+    last_long_end_idx = pd.Series(np.where(long_streak_end, df.index - 1, np.nan), index=df.index).ffill()
+    new_features['games_since_long_streak'] = (df.index - last_long_end_idx).fillna(200)
+    new_features['last_long_streak_type'] = colors.where(long_streak_end).ffill().fillna(0)
+    new_features['last_long_streak_len'] = streak_len_prev.where(long_streak_end).ffill().fillna(0)
     
     # 7. Medium Win Streak
     # Games since NOT (1.5 <= val <= 3.0)

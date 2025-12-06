@@ -48,18 +48,21 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         else:
             print(f"Warning: Unknown HMM state {state} encountered. One-hot vector will be all zeros.")
             
-    # Calculate 1.00x Frequency (Last 50 games)
+    # Calculate 1.00x Frequency (Fixed 50-game window on latest history)
     bust_freq = np.zeros(n_samples)
     if values is not None and len(values) > 0:
         import pandas as pd
-        # En sondaki n_samples değer üzerinden hizalı pencere hesapla
-        vals_tail = np.array(values)[-n_samples:]
-        is_bust = (vals_tail <= 1.00).astype(int)
+        vals_array = np.array(values)
+        window = max(50, n_samples)
+        tail_vals = vals_array[-window:]
+        is_bust = (tail_vals <= 1.00).astype(int)
         bust_freq_series = pd.Series(is_bust).rolling(window=50, min_periods=1).mean()
-        bust_freq = bust_freq_series.values
-        if len(bust_freq) < n_samples:
-            pad_width = n_samples - len(bust_freq)
-            bust_freq = np.pad(bust_freq, (pad_width, 0), mode='edge')
+        tail_freq = bust_freq_series.values
+        if len(tail_freq) >= n_samples:
+            bust_freq = tail_freq[-n_samples:]
+        else:
+            pad_width = n_samples - len(tail_freq)
+            bust_freq = np.pad(tail_freq, (pad_width, 0), mode='edge')
             
     # Handle Transformer Predictions
     # Fix: Only add transformer column if it is NOT None.
