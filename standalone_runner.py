@@ -9,7 +9,7 @@ import joblib
 sys.path.append(os.getcwd())
 
 # Import Project Modules
-from jetx_project.config import DB_PATH, HMM_BIN_EDGES
+from jetx_project.config import DB_PATH, HMM_BIN_EDGES, DB_LIMIT
 from jetx_project.data_loader import load_data, get_values_array
 from jetx_project.model_a import prepare_model_a_data, train_model_a, save_models
 from jetx_project.model_b import build_memory, train_model_b, save_memory
@@ -30,7 +30,7 @@ def main():
         print(f"Error: Database {DB_PATH} not found. Please provide data.")
         return
         
-    df = load_data(DB_PATH, limit=10000) # Load ample data for training
+    df = load_data(DB_PATH, limit=DB_LIMIT) # Load data with central limit to avoid OOM
     values = get_values_array(df)
     print(f"Loaded {len(values)} records.")
     

@@ -27,34 +27,15 @@ def extract_features(history_full: np.ndarray, current_index: int) -> Dict[str, 
     # history_full[0...current_index-1] is available.
     
     if current_index < 100:
-        # Too early, return empty or default
-        # But we can try with what we have
         slice_start = 0
     else:
         slice_start = max(0, current_index - needed_history)
         
-    # We include current_index because we might need it for some logic, 
-    # but mostly we need data BEFORE current_index.
-    # Actually, extract_features_batch calculates features for row 'i' using data up to 'i-1'.
-    # So if we want features for 'current_index', we need a DataFrame that includes 'current_index' as a row (even if value is NaN or dummy),
-    # so that shift(1) works and brings data from current_index-1.
+    # Dahil edilecek aralık: slice_start..current_index (son değer dahil)
+    history_slice = history_full[slice_start : current_index + 1]
     
-    history_slice = history_full[slice_start : current_index]
-    
-    # Create DataFrame
-    # We add a dummy row at the end to represent 'current_index'
-    # The value of this dummy row doesn't matter for shift(1) features, 
-    # but it matters if we use current row values (we shouldn't).
-    # All our features are shift(1), so they use previous rows.
-    
+    # Create DataFrame (gerçek değerlerle, dummy yok)
     df_slice = pd.DataFrame({'value': history_slice})
-    
-    # Append dummy row for the prediction point
-    # We can use concat
-    dummy_row = pd.DataFrame({'value': [0.0]}) # Value doesn't matter
-    df_slice = pd.concat([df_slice, dummy_row], ignore_index=True)
-    
-    # Now the last index of df_slice corresponds to 'current_index'
     
     # 3. Call Batch Extraction
     df_features = extract_features_batch(df_slice)

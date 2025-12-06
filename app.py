@@ -8,7 +8,7 @@ import sys
 # Add current directory to path so we can import jetx_project
 sys.path.append(os.getcwd())
 
-from jetx_project.config import WINDOWS
+from jetx_project.config import WINDOWS, DB_LIMIT
 from jetx_project.model_a import load_models, prepare_model_a_data
 from jetx_project.features import extract_features
 from jetx_project.model_b import load_memory, create_pattern_vector, predict_model_b
@@ -155,8 +155,8 @@ if 'history' not in st.session_state:
     if os.path.exists(DB_PATH):
         try:
             from jetx_project.data_loader import load_data, get_values_array
-            # Fix: Limit to last 2000 records to prevent OOM and improve performance
-            df = load_data(DB_PATH, limit=2000)
+            from jetx_project.config import DB_LIMIT
+            df = load_data(DB_PATH, limit=DB_LIMIT)
             vals = get_values_array(df)
             st.session_state.history = vals.tolist()
             st.success(f"Loaded last {len(vals)} records from jetx.db")
@@ -290,14 +290,14 @@ if st.button("Add Result & Predict"):
             hmm_input = history_arr
             
         # Use CategoricalHMM prediction
-        from jetx_project.model_hmm import predict_categorical_hmm_states
+        from jetx_project.model_hmm import predict_categorical_hmm_states_causal
         
         if models.get('hmm'):
             hmm_model = models['hmm']['model']
             hmm_map = models['hmm']['map']
             hmm_bins = models['hmm']['bins']
-            hmm_states = predict_categorical_hmm_states(hmm_model, hmm_input, hmm_map, bins=hmm_bins)
-            current_state = hmm_states[-1]
+            hmm_states = predict_categorical_hmm_states_causal(hmm_model, hmm_input, hmm_map, bins=hmm_bins, window_size=200)
+            current_state = hmm_states[-1] if len(hmm_states) > 0 else None
         else:
             current_state = None
             
@@ -312,8 +312,8 @@ if st.button("Add Result & Predict"):
     # The meta-learner expects numeric inputs, not None.
     real_history = np.array(st.session_state.history[-250:]) if st.session_state.history else np.array([])
     if current_state is None:
-        st.error("Piyasa rejimi tespit edilemediği için tahmin sistemi güvenlik moduna geçti.")
-        final_prob = 0.0
+        # HMM yoksa nötr state ile devam et (agresif fail-safe yerine)
+        current_state = 1  # Neutral/Normal
     else:
         meta_X = prepare_meta_features(
             np.array([probs['A'] if probs['A'] is not None else 0.5]),

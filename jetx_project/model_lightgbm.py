@@ -47,16 +47,16 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train):
     # Detailed Reporting
     from sklearn.metrics import confusion_matrix, classification_report
     
-    # P1.5 Report (proba + daha yüksek eşik)
+    # P1.5 Report (proba + orta eşik)
     preds_p15_proba = clf_p15.predict_proba(X_val)[:, 1]
     print("\n--- LightGBM P1.5 Report ---")
-    cm_p15 = confusion_matrix(y_p15_val, (preds_p15_proba >= 0.8).astype(int))
+    cm_p15 = confusion_matrix(y_p15_val, (preds_p15_proba >= 0.65).astype(int))
     print(f"Confusion Matrix (P1.5):\n{cm_p15}")
-    detailed_evaluation(y_p15_val, preds_p15_proba, "P1.5", threshold=0.8)
+    detailed_evaluation(y_p15_val, preds_p15_proba, "P1.5", threshold=0.65)
 
-    # P3.0 Report (proba + daha düşük eşik)
+    # P3.0 Report (proba + düşük eşik)
     preds_p3_proba = clf_p3.predict_proba(X_val)[:, 1]
-    detailed_evaluation(y_p3_val, preds_p3_proba, "P3.0", threshold=0.5)
+    detailed_evaluation(y_p3_val, preds_p3_proba, "P3.0", threshold=0.45)
                
     return clf_p15, clf_p3
 
