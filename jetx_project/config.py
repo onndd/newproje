@@ -7,13 +7,13 @@ WINDOWS = [50, 100, 200, 500]
 # HMM Binning Configuration
 # We want to ensure 1.50x is a hard boundary for one of the bins.
 # Previous bins were log-spaced but didn't align with 1.50x.
-# New Bins: [1.00, 1.20, 1.50, 2.00, 5.00, 10000.0]
+# New Bins: [1.00, 1.20, 1.49, 2.00, 5.00, 10000.0]
 # Bin 0: 1.00 - 1.19 (Very Low)
 # Bin 1: 1.20 - 1.49 (Low - Loss Zone)
 # Bin 2: 1.50 - 1.99 (Target Zone)
 # Bin 3: 2.00 - 4.99 (High)
 # Bin 4: 5.00+ (Very High)
-HMM_BIN_EDGES = [1.00, 1.20, 1.50, 2.00, 5.00, 10000.0]
+HMM_BIN_EDGES = [1.00, 1.20, 1.49, 2.00, 5.00, 10000.0]
 
 # NOTE: Ranges are now defined as INCLUSIVE [lower, upper].
 # We assume data has 2 decimal places.
