@@ -51,7 +51,7 @@ def prepare_model_a_data(values, hmm_states, start_index=500):
     
     return X, y_p15, y_p3, y_x
 
-def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
+def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, params_p3=None, params_x=None):
     """
     Trains the 3 CatBoost models with validation and metric reporting.
     Uses 15% of the training data for validation to prevent overfitting.
@@ -69,6 +69,7 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     y_p15_t, y_p15_val = y_p15_train[:split_idx], y_p15_train[split_idx:]
     
     # Optimized parameters (Manual tuning to prevent overfitting)
+    # Default params
     params = {
         'iterations': 2000,
         'learning_rate': 0.005, # Slower learning
@@ -83,6 +84,12 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
         # Negatifleri (0) daha ciddiye alması lazım.
         'class_weights': {0: 2.0, 1: 1.0},
     }
+    
+    # Override if params_p15 provided (from Optuna)
+    if params_p15:
+        print(f"Using optimized parameters for P1.5: {params_p15}")
+        params.update(params_p15)
+
     model_p15 = CatBoostClassifier(**params)
     model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))
     
@@ -114,6 +121,7 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     print("\n--- Training Model A (P3.0) ---")
     y_p3_t, y_p3_val = y_p3_train[:split_idx], y_p3_train[split_idx:]
     # Optimized parameters (Manual tuning to prevent overfitting)
+    # Default params
     params = {
         'iterations': 3000, 
         'learning_rate': 0.01, 
@@ -126,6 +134,12 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
         'verbose': 100,
         'early_stopping_rounds': 200 
     }
+    
+    # Override from Optuna
+    if params_p3:
+        print(f"Using optimized parameters for P3.0: {params_p3}")
+        params.update(params_p3)
+
     model_p3 = CatBoostClassifier(**params)
     model_p3.fit(X_t, y_p3_t, eval_set=(X_val, y_p3_val))
     
@@ -148,16 +162,24 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
     print("\n--- Training Model A (Regression) ---")
     y_x_t, y_x_val = y_x_train[:split_idx], y_x_train[split_idx:]
     
-    model_x = CatBoostRegressor(
-        iterations=1000, 
-        learning_rate=0.03, 
-        depth=6,
-        l2_leaf_reg=3,
-        border_count=128,
-        early_stopping_rounds=100, 
-        loss_function='RMSE',
-        verbose=100
-    )
+    
+    # Defaults
+    params = {
+        'iterations': 1000, 
+        'learning_rate': 0.03, 
+        'depth': 6,
+        'l2_leaf_reg': 3,
+        'border_count': 128,
+        'early_stopping_rounds': 100, 
+        'loss_function': 'RMSE',
+        'verbose': 100
+    }
+    
+    if params_x:
+        print(f"Using optimized parameters for Regression: {params_x}")
+        params.update(params_x)
+
+    model_x = CatBoostRegressor(**params)
     model_x.fit(X_t, y_x_t, eval_set=(X_val, y_x_val))
     
     # Evaluate

@@ -372,9 +372,9 @@ if page == "🚀 Canlı Tahmin":
         with col3:
             st.subheader("ENSEMBLE DECISION")
             st.metric("Final Probability (>1.5x)", f"{final_prob:.2%}", 
-                     delta="High Confidence" if final_prob > 0.65 else "Low Confidence")
+                     delta="High Confidence" if final_prob > 0.70 else "Low Confidence")
             
-            if final_prob > 0.65:
+            if final_prob > 0.70:
                 st.success("🚀 SIGNAL: BET (1.50x)")
             else:
                 st.error("🛑 SIGNAL: WAIT")

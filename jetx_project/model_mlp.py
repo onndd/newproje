@@ -5,7 +5,7 @@ import os
 import numpy as np
 import pandas as pd
 
-def train_model_mlp(X_train, y_p15_train, y_p3_train):
+def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3=None):
     """
     Trains MLP models.
     """
@@ -54,18 +54,42 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     print("Training MLP (P1.5) - Balancing Minority (Class 0)...")
     X_t_p15, y_p15_t_balanced = balance_data(X_t, y_p15_t, target_class=0, multiplier=2.0)
     
-    clf_p15 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
-                            solver='adam', alpha=0.01, learning_rate_init=0.001,
-                            max_iter=500, early_stopping=True, verbose=True)
+    params = {
+        'hidden_layer_sizes': (256, 128, 64), 
+        'activation': 'relu', 
+        'solver': 'adam', 
+        'alpha': 0.01, 
+        'learning_rate_init': 0.001,
+        'max_iter': 500, 
+        'early_stopping': True, 
+        'verbose': True
+    }
+    if params_p15:
+        print(f"Using optimized parameters for MLP P1.5: {params_p15}")
+        params.update(params_p15)
+
+    clf_p15 = MLPClassifier(**params)
     clf_p15.fit(X_t_p15, y_p15_t_balanced)
     
     # P3.0 Model (Weight 1.0 -> 2.0 for positives)
     print("Training MLP (P3.0)...")
     X_t_p3, y_p3_t_balanced = balance_data(X_t, y_p3_t, 2.0)
     
-    clf_p3 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
-                           solver='adam', alpha=0.01, learning_rate_init=0.001,
-                           max_iter=500, early_stopping=True, verbose=True)
+    params_3 = {
+        'hidden_layer_sizes': (256, 128, 64), 
+        'activation': 'relu', 
+        'solver': 'adam', 
+        'alpha': 0.01, 
+        'learning_rate_init': 0.001,
+        'max_iter': 500, 
+        'early_stopping': True, 
+        'verbose': True
+    }
+    if params_p3:
+        print(f"Using optimized parameters for MLP P3.0: {params_p3}")
+        params_3.update(params_p3)
+
+    clf_p3 = MLPClassifier(**params_3)
     clf_p3.fit(X_t_p3, y_p3_t_balanced)
     
     # Detailed Reporting

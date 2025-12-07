@@ -32,6 +32,22 @@ class PositionalEncoding(tf.keras.layers.Layer):
     def call(self, inputs):
         return inputs + self.pos_encoding[:, :tf.shape(inputs)[1], :]
 
+class BinaryFocalLoss(tf.keras.losses.Loss):
+    def __init__(self, gamma=2.0, alpha=0.25, name='binary_focal_loss'):
+        super().__init__(name=name)
+        self.gamma = gamma
+        self.alpha = alpha
+
+    def call(self, y_true, y_pred):
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.clip_by_value(y_pred, 1e-7, 1 - 1e-7)
+        
+        alpha_t = y_true * self.alpha + (1 - y_true) * (1 - self.alpha)
+        p_t = y_true * y_pred + (1 - y_true) * (1 - y_pred)
+        
+        focal_loss = - alpha_t * tf.math.pow(1 - p_t, self.gamma) * tf.math.log(p_t)
+        return tf.reduce_mean(focal_loss)
+
 def build_transformer_model(seq_length, num_heads=4, key_dim=32, ff_dim=64):
     """
     Builds a Transformer model for Time-Series forecasting.
@@ -73,8 +89,13 @@ def build_transformer_model(seq_length, num_heads=4, key_dim=32, ff_dim=64):
     output_p3 = Dense(1, activation='sigmoid', name='p3')(x)
     
     model = Model(inputs=inputs, outputs=[output_p15, output_p3])
+    
+    # Use Focal Loss
+    loss_p15 = BinaryFocalLoss(gamma=2.0, alpha=0.75) # Alpha > 0.5 to focus on positive (minority) class
+    loss_p3 = BinaryFocalLoss(gamma=2.0, alpha=0.85) # Higher alpha for P3 (more imbalanced)
+    
     model.compile(optimizer='adam', 
-                  loss={'p15': 'binary_crossentropy', 'p3': 'binary_crossentropy'},
+                  loss={'p15': loss_p15, 'p3': loss_p3},
                   metrics={'p15': 'accuracy', 'p3': 'accuracy'})
     return model
 
@@ -161,8 +182,8 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     # P3.0 Sample Weights
     sample_weight_p3 = compute_sample_weight(class_weight='balanced', y=y_p3_train)
     
-    # Sample weight'ler Keras çoklu çıktı ile sorun çıkardığı için devre dışı bırakıldı.
-    sample_weights = None
+    # Pass as dictionary for multi-output
+    sample_weights = {'p15': sample_weight_p15, 'p3': sample_weight_p3}
     
     print("Computed sample weights for Transformer multi-output training.")
     
@@ -173,9 +194,7 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     
     # Re-compile to add new metrics
     model = build_transformer_model(seq_length)
-    model.compile(optimizer='adam', 
-                  loss={'p15': 'binary_crossentropy', 'p3': 'binary_crossentropy'},
-                  metrics={'p15': metrics, 'p3': metrics})
+    # Focal Loss is already compiled inside build_transformer_model now
     
     print("Training Transformer (The Attention)...")
     model.fit(

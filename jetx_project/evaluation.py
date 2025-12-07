@@ -1,7 +1,7 @@
 import numpy as np
 from sklearn.metrics import confusion_matrix, classification_report, roc_auc_score
 
-def detailed_evaluation(y_true, y_pred_proba, model_name="Model", threshold=0.75):
+def detailed_evaluation(y_true, y_pred_proba, model_name="Model", threshold=0.70):
     """
     Prints detailed evaluation metrics including Confusion Matrix, Precision, Recall, F1, ROC-AUC, and Profit/Loss.
     """

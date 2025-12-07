@@ -102,8 +102,8 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
         if kasa3.max_drawdown > (kasa3.max_balance * DRAWDOWN_LIMIT): kasa3_active = False
         if kasa4.max_drawdown > (kasa4.max_balance * DRAWDOWN_LIMIT): kasa4_active = False
         
-        # --- Kasa 1: 1.5x, %75 confidence ---
-        if kasa1_active and p_1_5 >= 0.75:
+        # --- Kasa 1: 1.5x, %70 confidence ---
+        if kasa1_active and p_1_5 >= 0.70:
             bet = 10
             target = 1.5
             # SLIPPAGE: We require true_val to be at least target + 0.02 to guarantee a win
@@ -115,8 +115,8 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
         else:
             kasa1.update(0) # No bet
             
-        # --- Kasa 2: 1.5x, %85 confidence ---
-        if kasa2_active and p_1_5 >= 0.85:
+        # --- Kasa 2: 1.5x, %80 confidence ---
+        if kasa2_active and p_1_5 >= 0.80:
             bet = 20
             target = 1.5
             if true_val >= target + 0.02:
@@ -127,8 +127,8 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
         else:
             kasa2.update(0)
             
-        # --- Kasa 3: 3x focus, %55 confidence ---
-        if kasa3_active and p_3 >= 0.55:
+        # --- Kasa 3: 3x focus, %60 confidence ---
+        if kasa3_active and p_3 >= 0.60:
             bet = 10
             # Target exit: max(1.5, 0.8 * x_pred)
             target = max(1.5, 0.8 * pred_x)
@@ -142,7 +142,7 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
             kasa3.update(0)
 
         # --- Kasa 4: Smart Kelly (Dynamic Staking) ---
-        if kasa4_active and p_1_5 > 0.65:
+        if kasa4_active and p_1_5 > 0.70:
             target = 1.50
             b = target - 1 # 0.5
             p = p_1_5

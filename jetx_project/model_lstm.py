@@ -33,24 +33,24 @@ def create_sequences(input_values, target_values, seq_length=200):
         
     return np.array(X), np.array(y_p15), np.array(y_p3), np.array(y_val)
 
-def build_lstm_model(seq_length):
+def build_lstm_model(seq_length, units=128, dropout=0.2, dense_units=64):
     """
     Basit iki katmanlı LSTM mimarisi.
     Giriş: (seq_length, 1), Çıkış: tek olasılık başı.
     """
     model = Sequential()
-    model.add(LSTM(128, return_sequences=True, input_shape=(seq_length, 1)))
-    model.add(Dropout(0.2))
+    model.add(LSTM(units, return_sequences=True, input_shape=(seq_length, 1)))
+    model.add(Dropout(dropout))
     model.add(BatchNormalization())
-    model.add(LSTM(64, return_sequences=False))
-    model.add(Dropout(0.2))
+    model.add(LSTM(int(units/2), return_sequences=False))
+    model.add(Dropout(dropout))
     model.add(BatchNormalization())
-    model.add(Dense(64, activation='relu'))
-    model.add(Dropout(0.2))
+    model.add(Dense(dense_units, activation='relu'))
+    model.add(Dropout(dropout))
     model.add(Dense(1, activation='sigmoid'))
     return model
 
-def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128):
+def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p15=None, params_p3=None):
     """
     Trains LSTM models for P1.5 and P3 with NO DATA LEAKAGE.
     """
@@ -105,22 +105,42 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128):
     # Define Metrics
     metrics = ['accuracy', tf.keras.metrics.Precision(name='precision'), tf.keras.metrics.Recall(name='recall')]
     
+    # --- P1.5 Model ---
     print("Training LSTM (P1.5)...")
-    model_p15 = build_lstm_model(seq_length)
-    # Re-compile to add new metrics
-    model_p15.compile(optimizer='adam', loss='binary_crossentropy', metrics=metrics)
+    
+    # Defaults
+    p15_args = {
+        'units': 128, 'dropout': 0.2, 'dense_units': 64, 
+        'learning_rate': 0.001, 'batch_size': batch_size
+    }
+    if params_p15:
+        p15_args.update(params_p15)
+        
+    model_p15 = build_lstm_model(seq_length, units=p15_args['units'], dropout=p15_args['dropout'], dense_units=p15_args['dense_units'])
+    
+    opt = tf.keras.optimizers.Adam(learning_rate=p15_args['learning_rate'])
+    model_p15.compile(optimizer=opt, loss='binary_crossentropy', metrics=metrics)
     
     model_p15.fit(X_train, y_p15_train, validation_data=(X_val, y_p15_val),
-                  epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1,
+                  epochs=epochs, batch_size=p15_args['batch_size'], callbacks=callbacks, verbose=1,
                   class_weight=class_weight_p15)
                   
+    # --- P3.0 Model ---
     print("Training LSTM (P3.0)...")
-    model_p3 = build_lstm_model(seq_length)
-    # Re-compile to add new metrics
-    model_p3.compile(optimizer='adam', loss='binary_crossentropy', metrics=metrics)
+    p3_args = {
+        'units': 128, 'dropout': 0.2, 'dense_units': 64, 
+        'learning_rate': 0.001, 'batch_size': batch_size
+    }
+    if params_p3:
+        p3_args.update(params_p3)
+        
+    model_p3 = build_lstm_model(seq_length, units=p3_args['units'], dropout=p3_args['dropout'], dense_units=p3_args['dense_units'])
+    
+    opt_3 = tf.keras.optimizers.Adam(learning_rate=p3_args['learning_rate'])
+    model_p3.compile(optimizer=opt_3, loss='binary_crossentropy', metrics=metrics)
     
     model_p3.fit(X_train, y_p3_train, validation_data=(X_val, y_p3_val),
-                 epochs=epochs, batch_size=batch_size, callbacks=callbacks, verbose=1,
+                 epochs=epochs, batch_size=p3_args['batch_size'], callbacks=callbacks, verbose=1,
                  class_weight=class_weight_p3)
                  
     # Detailed Reporting
