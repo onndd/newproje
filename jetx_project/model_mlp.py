@@ -28,21 +28,48 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     from sklearn.utils.class_weight import compute_sample_weight
     
     # P1.5 Model
+    # Manual Oversampling for Class Balancing (since MLPClassifier doesn't support class_weight)
+    def balance_data(X, y, weight_1):
+        # Separate classes
+        mask_0 = y == 0
+        mask_1 = y == 1
+        X_0, y_0 = X[mask_0], y[mask_0]
+        X_1, y_1 = X[mask_1], y[mask_1]
+        
+        # Determine number of copies for class 1
+        # If weight_1 is 2.0, we want to double the presence of class 1 roughly
+        # Or simpler: duplicate class 1 'weight_1' times (int)
+        import math
+        repeats = math.ceil(weight_1)
+        
+        X_1_balanced = pd.concat([X_1] * repeats, axis=0)
+        y_1_balanced = np.tile(y_1, repeats) # numpy array tile
+        
+        # Combine
+        X_balanced = pd.concat([X_0, X_1_balanced], axis=0)
+        y_balanced = np.concatenate([y_0, y_1_balanced])
+        
+        # Shuffle
+        perm = np.random.permutation(len(X_balanced))
+        return X_balanced.iloc[perm], y_balanced[perm]
+    
+    # P1.5 Model (Weight 1.0 -> 2.0 for positives)
     print("Training MLP (P1.5)...")
-    # Örnekleri çoğaltmak yerine class_weight ile denge sağla
+    X_t_p15, y_p15_t_balanced = balance_data(X_t, y_p15_t, 2.0)
+    
     clf_p15 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
                             solver='adam', alpha=0.01, learning_rate_init=0.001,
                             max_iter=500, early_stopping=True, verbose=True)
-    clf_p15.fit(X_t, y_p15_t, class_weight={0: 2.0, 1: 1.0})
+    clf_p15.fit(X_t_p15, y_p15_t_balanced)
     
-    # P3.0 Model (Same logic)
+    # P3.0 Model (Weight 1.0 -> 2.0 for positives)
     print("Training MLP (P3.0)...")
-    # P3.0 Model (class_weight ile denge)
-    print("Training MLP (P3.0)...")
+    X_t_p3, y_p3_t_balanced = balance_data(X_t, y_p3_t, 2.0)
+    
     clf_p3 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
                            solver='adam', alpha=0.01, learning_rate_init=0.001,
                            max_iter=500, early_stopping=True, verbose=True)
-    clf_p3.fit(X_t, y_p3_t, class_weight={0: 1.0, 1: 2.0})
+    clf_p3.fit(X_t_p3, y_p3_t_balanced)
     
     # Detailed Reporting
     from sklearn.metrics import confusion_matrix, classification_report
