@@ -82,6 +82,56 @@ def optimize_catboost(X, y, n_trials=20, timeout=600):
     print(f"Best CatBoost params: {study.best_params}")
     return study.best_params
 
+def optimize_lightgbm(X, y, n_trials=20, timeout=600):
+    """
+    Optimizes LightGBM hyperparameters using Optuna.
+    """
+    print(f"--- Starting LightGBM Optimization ({n_trials} trials) ---")
+    
+    # Split data (Time-series split)
+    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, shuffle=False)
+    
+    def objective(trial):
+        param = {
+            'objective': 'binary',
+            'metric': 'binary_error',
+            'verbosity': -1,
+            'boosting_type': 'gbdt',
+            'lambda_l1': trial.suggest_float('lambda_l1', 1e-8, 10.0, log=True),
+            'lambda_l2': trial.suggest_float('lambda_l2', 1e-8, 10.0, log=True),
+            'num_leaves': trial.suggest_int('num_leaves', 2, 256),
+            'feature_fraction': trial.suggest_float('feature_fraction', 0.4, 1.0),
+            'bagging_fraction': trial.suggest_float('bagging_fraction', 0.4, 1.0),
+            'bagging_freq': trial.suggest_int('bagging_freq', 1, 7),
+            'min_child_samples': trial.suggest_int('min_child_samples', 5, 100),
+            'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.3),
+            'n_estimators': trial.suggest_int('n_estimators', 100, 1000),
+            'class_weight': trial.suggest_categorical('class_weight', [None, 'balanced']),
+            'force_col_wise': True
+        }
+        
+        try:
+            model = lgb.LGBMClassifier(**param)
+            model.fit(
+                X_train, y_train,
+                eval_set=[(X_val, y_val)],
+                eval_metric='binary_error',
+                callbacks=[lgb.early_stopping(stopping_rounds=30)]
+            )
+            
+            preds = model.predict(X_val)
+            return calculate_profit_score(y_val, preds)
+        
+        except Exception as e:
+            print(f"LGBM Trial Error: {e}")
+            return -1000.0
+
+    study = optuna.create_study(direction='maximize')
+    study.optimize(objective, n_trials=n_trials, timeout=timeout)
+    
+    print(f"Best LightGBM params: {study.best_params}")
+    return study.best_params
+
 def optimize_mlp(X, y, n_trials=20, timeout=300):
     """
     Optimizes MLP hyperparameters.
