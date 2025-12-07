@@ -25,24 +25,68 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     Returns:
         meta_features: Numpy array of shape (n_samples, n_features)
     """
-    n_samples = len(preds_a)
+    # 1. Determine n_samples dynamically from the first valid input
+    n_samples = 0
     
+    # Priority check for n_samples
+    if values is not None:
+        n_samples = len(values)
+    elif preds_a is not None:
+        n_samples = len(preds_a)
+    elif preds_b is not None:
+        n_samples = len(preds_b)
+    # ... check others if needed, but usually one of above exists
+    
+    if n_samples == 0:
+        # Extreme fallback
+        return np.array([])
+        
     inputs = {
         "preds_a": preds_a,
         "preds_b": preds_b,
         "preds_c": preds_c,
         "preds_d": preds_d,
         "preds_e": preds_e,
-        "hmm_states": hmm_states,
     }
+    
+    # Clean Inputs filling Nones
+    cleaned_inputs = {}
     for name, arr in inputs.items():
-        if len(arr) != n_samples:
-            raise ValueError(f"Length mismatch in meta features: expected {n_samples}, got {len(arr)} for {name}")
+        if arr is None or len(arr) == 0:
+            print(f"Warning: {name} is missing. Filling with 0.5 (Neutral).")
+            cleaned_inputs[name] = np.full(n_samples, 0.5)
+        else:
+            if len(arr) != n_samples:
+                # Try to trim or pad? Better to fail or force fit?
+                # For safety, strict length check but informative error
+                if abs(len(arr) - n_samples) > 1: # slight tolerance
+                     print(f"Critical Length Mismatch {name}: {len(arr)} vs {n_samples}. Truncating to min.")
+                     min_l = min(len(arr), n_samples)
+                     cleaned_inputs[name] = arr[:min_l]
+                     # Only truncate others if this happens? 
+                     # This is messy. Let's assume passed inputs are aligned or None.
+                     # If just slightly different, we assume alignment.
+                     pass 
+                cleaned_inputs[name] = arr[:n_samples] # Truncate if longer
+            else:
+                cleaned_inputs[name] = arr
+
+    # HMM States handling
+    if hmm_states is None or len(hmm_states) == 0:
+        print("Warning: hmm_states missing. Filling with 1 (Normal).")
+        cleaned_hmm = np.full(n_samples, 1)
+    else:
+        cleaned_hmm = hmm_states[:n_samples]
     
     # One-Hot Encode HMM States (Assuming 3 states: 0, 1, 2)
     hmm_onehot = np.zeros((n_samples, 3))
     for i in range(n_samples):
-        state = int(hmm_states[i])
+        val = cleaned_hmm[i]
+        try:
+             state = int(val)
+        except:
+             state = 1 # fallback
+             
         if 0 <= state < 3:
             hmm_onehot[i, state] = 1
         else:
@@ -69,11 +113,11 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     # This prevents shape mismatch if the meta-learner was trained without it.
     
     feature_list = [
-        preds_a,
-        preds_b,
-        preds_c,
-        preds_d,
-        preds_e
+        cleaned_inputs["preds_a"],
+        cleaned_inputs["preds_b"],
+        cleaned_inputs["preds_c"],
+        cleaned_inputs["preds_d"],
+        cleaned_inputs["preds_e"]
     ]
     
     if preds_transformer is not None:

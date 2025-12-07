@@ -97,6 +97,10 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     train_scaled = scaler.transform(train_values_log.reshape(-1, 1))
     
     # Validation Context
+    # Note: We append validation targets to context to allow autoregressive evaluation (Teacher Forcing).
+    # X_val[0] will use Context. 
+    # X_val[1] will use Context + Val[0]. 
+    # This is CAUSAL because at step T we know T-1.
     context_values = train_values[-seq_length:]
     val_values_with_context = np.concatenate([context_values, val_values])
     val_values_with_context_log = np.log1p(val_values_with_context)

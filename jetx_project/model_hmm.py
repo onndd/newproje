@@ -189,8 +189,8 @@ def predict_categorical_hmm_states(model, values, state_map, bins):
     
     # 1. Discretize using SAVED bins
     if bins is None:
-        print("Warning: No bins provided for CategoricalHMM. Using fallback.")
-        bins = np.array([1.0, 1.2, 1.5, 2.0, 5.0, 100000.0])
+        print("Warning: No bins provided for CategoricalHMM. Using fallback from config.")
+        bins = np.array(HMM_BIN_EDGES, dtype=float)
         
     s_values = pd.Series(values)
     discretized = pd.cut(s_values, bins=bins, labels=False, include_lowest=True)
@@ -219,8 +219,8 @@ def predict_categorical_hmm_states_causal(model, values, state_map, bins, window
     
     # 1. Discretize ALL values first (using provided bins; fall back to safe defaults)
     if bins is None:
-        # Default bins keep 1.50 as explicit boundary
-        bins = [0, 1.20, 1.50, 2.00, 10.0, np.inf]
+        # Default bins from configuration
+        bins = np.array(HMM_BIN_EDGES, dtype=float)
     s_values = pd.Series(values.ravel())
     discretized = pd.cut(s_values, bins=bins, labels=False, include_lowest=True)
     discretized = discretized.fillna(len(bins) - 2).astype(int)

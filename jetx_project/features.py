@@ -31,8 +31,11 @@ def extract_features(history_full: np.ndarray, current_index: int) -> Dict[str, 
     else:
         slice_start = max(0, current_index - needed_history)
         
-    # Dahil edilecek aralık: slice_start..current_index (son değer dahil)
-    history_slice = history_full[slice_start : current_index + 1]
+    # Dahil edilecek aralık: slice_start..current_index (current_index HARİÇ)
+    # CRITICAL FIX: We must NOT include the target value at current_index in the features.
+    # extract_features_batch internally shifts by 1, but to be absolutely safe and logical,
+    # the input history should end at current_index-1.
+    history_slice = history_full[slice_start : current_index]
     
     # Create DataFrame (gerçek değerlerle, dummy yok)
     df_slice = pd.DataFrame({'value': history_slice})

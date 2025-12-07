@@ -165,6 +165,10 @@ if 'history' not in st.session_state:
             st.session_state.history = []
     else:
         st.session_state.history = [] 
+        
+# Enforce RAM Limit on Startup
+if len(st.session_state.history) > DB_LIMIT:
+    st.session_state.history = st.session_state.history[-DB_LIMIT:] 
 
 # Input
 new_val = st.number_input("Enter Last Result (X):", min_value=1.00, max_value=100000.0, step=0.01, format="%.2f")
@@ -181,9 +185,10 @@ if st.button("Add Result & Predict"):
     # Fix: Moved inside the success block to ensure consistency
     st.session_state.history.append(new_val)
     
-    # Memory Leak Fix: Limit history size
-    if len(st.session_state.history) > 10000:
-        st.session_state.history.pop(0)
+    # CRITICAL FIX: Memory Leak & Sync
+    # Enforce strict limit on RAM history to match DB_LIMIT
+    if len(st.session_state.history) > DB_LIMIT:
+        st.session_state.history = st.session_state.history[-DB_LIMIT:]
     
     history_arr = np.array(st.session_state.history)
     current_idx = len(history_arr) - 1
