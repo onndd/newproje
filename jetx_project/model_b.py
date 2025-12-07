@@ -305,14 +305,42 @@ def predict_model_b(nbrs, pca, memory_targets, current_pattern):
         
     distances, indices = nbrs.kneighbors(current_pattern_reduced)
     
-    # Aggregate targets of neighbors
-    neighbor_targets = [memory_targets[i] for i in indices[0]]
+    # Check if batch or single
+    n_samples = indices.shape[0]
     
-    avg_p15 = np.mean([t['p15'] for t in neighbor_targets])
-    avg_p3 = np.mean([t['p3'] for t in neighbor_targets])
-    avg_val = np.mean([t['val'] for t in neighbor_targets])
+    preds_p15 = np.zeros(n_samples)
+    preds_p3 = np.zeros(n_samples)
+    preds_val = np.zeros(n_samples)
     
-    return avg_p15, avg_p3, avg_val
+    for j in range(n_samples):
+        # Indices for the j-th sample
+        row_indices = indices[j]
+        
+        # Aggregate targets
+        # indices are into 'memory_targets'
+        # Optimization: memory_targets is a list, so we iterate
+        # Assuming memory_targets is large, this is still O(Batch * K) which is fine
+        
+        # Collect values
+        vals_p15 = []
+        vals_p3 = []
+        vals_v = []
+        
+        for idx in row_indices:
+            t = memory_targets[idx]
+            vals_p15.append(t['p15'])
+            vals_p3.append(t['p3'])
+            vals_v.append(t['val'])
+            
+        preds_p15[j] = np.mean(vals_p15)
+        preds_p3[j] = np.mean(vals_p3)
+        preds_val[j] = np.mean(vals_v)
+        
+    # If single sample, return scalars for backward compatibility
+    if n_samples == 1:
+        return preds_p15[0], preds_p3[0], preds_val[0]
+        
+    return preds_p15, preds_p3, preds_val
 
 def evaluate_model_b(nbrs, pca, memory_targets, test_values, start_index=0):
     """

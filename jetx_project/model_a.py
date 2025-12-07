@@ -79,8 +79,9 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train):
         'random_seed': 42,
         'verbose': 100,
         'early_stopping_rounds': 300,
-        # Sınıf 0 ağırlığını daha da yumuşattık, aşırı çekingenliği azaltmak için
-        'class_weights': {0: 1.1, 1: 1.0}
+        # Sınıf 0 ağırlığını artırdık çünkü model "her şeye giriyor". 
+        # Negatifleri (0) daha ciddiye alması lazım.
+        'class_weights': {0: 2.0, 1: 1.0},
     }
     model_p15 = CatBoostClassifier(**params)
     model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))

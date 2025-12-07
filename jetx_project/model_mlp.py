@@ -29,33 +29,30 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train):
     
     # P1.5 Model
     # Manual Oversampling for Class Balancing (since MLPClassifier doesn't support class_weight)
-    def balance_data(X, y, weight_1):
-        # Separate classes
-        mask_0 = y == 0
-        mask_1 = y == 1
-        X_0, y_0 = X[mask_0], y[mask_0]
-        X_1, y_1 = X[mask_1], y[mask_1]
+    # Updated Balance Function to target a specific class
+    def balance_data(X, y, target_class, multiplier=2.0):
+        mask_target = y == target_class
+        mask_other = y != target_class
         
-        # Determine number of copies for class 1
-        # If weight_1 is 2.0, we want to double the presence of class 1 roughly
-        # Or simpler: duplicate class 1 'weight_1' times (int)
+        X_target, y_target = X[mask_target], y[mask_target]
+        X_other, y_other = X[mask_other], y[mask_other]
+        
         import math
-        repeats = math.ceil(weight_1)
+        repeats = math.ceil(multiplier)
         
-        X_1_balanced = pd.concat([X_1] * repeats, axis=0)
-        y_1_balanced = np.tile(y_1, repeats) # numpy array tile
+        X_target_balanced = pd.concat([X_target] * repeats, axis=0)
+        y_target_balanced = np.tile(y_target, repeats)
         
-        # Combine
-        X_balanced = pd.concat([X_0, X_1_balanced], axis=0)
-        y_balanced = np.concatenate([y_0, y_1_balanced])
+        X_balanced = pd.concat([X_other, X_target_balanced], axis=0)
+        y_balanced = np.concatenate([y_other, y_target_balanced])
         
-        # Shuffle
         perm = np.random.permutation(len(X_balanced))
         return X_balanced.iloc[perm], y_balanced[perm]
     
-    # P1.5 Model (Weight 1.0 -> 2.0 for positives)
-    print("Training MLP (P1.5)...")
-    X_t_p15, y_p15_t_balanced = balance_data(X_t, y_p15_t, 2.0)
+    # P1.5 Model: Minority is Class 0 (Loss < 1.50) -> ~35%
+    # We want to boost Class 0 to prevent "Always Yes"
+    print("Training MLP (P1.5) - Balancing Minority (Class 0)...")
+    X_t_p15, y_p15_t_balanced = balance_data(X_t, y_p15_t, target_class=0, multiplier=2.0)
     
     clf_p15 = MLPClassifier(hidden_layer_sizes=(256, 128, 64), activation='relu', 
                             solver='adam', alpha=0.01, learning_rate_init=0.001,
