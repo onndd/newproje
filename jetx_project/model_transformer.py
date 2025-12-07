@@ -102,16 +102,47 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     # X_val[1] will use Context + Val[0]. 
     # This is CAUSAL because at step T we know T-1.
     context_values = train_values[-seq_length:]
-    val_values_with_context = np.concatenate([context_values, val_values])
-    val_values_with_context_log = np.log1p(val_values_with_context)
-    val_scaled_with_context = scaler.transform(val_values_with_context_log.reshape(-1, 1))
     
-    # 3. Create Sequences
-    from .model_lstm import create_sequences
-    # create_sequences expects (input_values, target_values, seq_length)
-    # Targets ham değerler, girişler ölçekli değerler olmalı.
+    # CRITICAL FIX (LEAKAGE):
+    # Old: val_values_with_context = concat(context, val_values) -> create_sequences includes future?
+    # Actually, create_sequences(X, y) uses X[i : i+seq] to predict y[i+seq].
+    # So if X contains the *target itself* at the last position, it's a leak IF we are trying to predict that same index.
+    # To be strictly safe and clear:
+    # 1. We form a continuous stream: context + val_values
+    stream = np.concatenate([context_values, val_values])
+    stream_log = np.log1p(stream)
+    stream_scaled = scaler.transform(stream_log.reshape(-1, 1))
+    
+    # 2. X, y generation
+    # We want to predict val_values[0], val_values[1]...
+    # To predict val_values[0], we need the previous `seq_length` items (which is `context_values`).
+    # `create_sequences` with `seq_length` does exactly this:
+    # It takes window [0..seq-1] to predict [seq].
+    # So if 'stream' starts with context (len=seq), then index 'seq' in stream is val_values[0].
+    # So create_sequences(stream, stream, seq_length) will produce:
+    # X[0] = stream[0:seq] (context), y[0] = stream[seq] (val_values[0]) -> CORRECT.
+    # X[1] = stream[1:seq+1] (context[1:]+val[0]), y[1] = val[1] -> CORRECT.
+    
+    # So the logic was actually mathematically fine, BUT explicit separation ensures no offset error.
+    # We will pass the full stream.
+    
     X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, train_values, seq_length)
-    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled_with_context, val_values_with_context, seq_length)
+    
+    # For validation, we use the stream but only take the parts that result in validation targets
+    X_val_all, y_p15_val_all, y_p3_val_all, _ = create_sequences(stream_scaled, stream, seq_length)
+    
+    # The 'stream' contains context + val.
+    # We only care about predictions for the 'val' part.
+    # The first prediction from creates_sequences on the stream will correspond to predicting index `seq_length` of the stream.
+    # Since stream = [context (len=seq), val (len=N)], index `seq_length` IS val[0].
+    # So X_val_all[0] predicts val[0].
+    # We just need to make sure we don't accidentally train on future val data if we were doing something else.
+    # But here we just use it for validation.
+    
+    # Re-assign strictly
+    X_val = X_val_all
+    y_p15_val = y_p15_val_all
+    y_p3_val = y_p3_val_all
     
     # Reshape
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))

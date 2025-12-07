@@ -25,20 +25,27 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     Returns:
         meta_features: Numpy array of shape (n_samples, n_features)
     """
-    # 1. Determine n_samples dynamically from the first valid input
+    # 1. Determine n_samples safely from PREDICTIONS first (not values)
+    # The app might pass values (history=250) but only 1 prediction.
+    # We must trust the prediction arrays as the ground truth for "rows to predict".
     n_samples = 0
     
-    # Priority check for n_samples
-    if values is not None:
-        n_samples = len(values)
-    elif preds_a is not None:
+    # Priority check for n_samples from predictions
+    if preds_a is not None and len(preds_a) > 0:
         n_samples = len(preds_a)
-    elif preds_b is not None:
+    elif preds_b is not None and len(preds_b) > 0:
         n_samples = len(preds_b)
-    # ... check others if needed, but usually one of above exists
-    
+    elif preds_c is not None and len(preds_c) > 0:
+        n_samples = len(preds_c)
+    elif preds_d is not None and len(preds_d) > 0:
+        n_samples = len(preds_d)
+    elif preds_e is not None and len(preds_e) > 0:
+        n_samples = len(preds_e)
+    # Only fall back to values length if NO predictions exist (unlikely but possible during init)
+    elif values is not None:
+        n_samples = len(values)
+        
     if n_samples == 0:
-        # Extreme fallback
         return np.array([])
         
     inputs = {
@@ -49,64 +56,83 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         "preds_e": preds_e,
     }
     
-    # Clean Inputs filling Nones
+    # Clean Inputs filling Nones & Alignment
     cleaned_inputs = {}
     for name, arr in inputs.items():
         if arr is None or len(arr) == 0:
-            print(f"Warning: {name} is missing. Filling with 0.5 (Neutral).")
             cleaned_inputs[name] = np.full(n_samples, 0.5)
         else:
             if len(arr) != n_samples:
-                # Try to trim or pad? Better to fail or force fit?
-                # For safety, strict length check but informative error
-                if abs(len(arr) - n_samples) > 1: # slight tolerance
-                     print(f"Critical Length Mismatch {name}: {len(arr)} vs {n_samples}. Truncating to min.")
-                     min_l = min(len(arr), n_samples)
-                     cleaned_inputs[name] = arr[:min_l]
-                     # Only truncate others if this happens? 
-                     # This is messy. Let's assume passed inputs are aligned or None.
-                     # If just slightly different, we assume alignment.
-                     pass 
-                cleaned_inputs[name] = arr[:n_samples] # Truncate if longer
+                # If array is longer (e.g. accidentally passed full history?), truncate to n_samples
+                # But usually, it's safer to just take the last n_samples? 
+                # Or if it's 1 vs 250, we assume the CALLER messed up.
+                # Here we assume standard behavior: truncate if longer, pad/fill if shorter (rare/bad)
+                if len(arr) > n_samples:
+                    # Take LAST n_samples (assuming time series alignment)
+                    cleaned_inputs[name] = arr[-n_samples:]
+                else:
+                    # Shorter? Fill with 0.5 for missing slots (or pad first/last)
+                    # This is a critical error state usually, but let's be robust:
+                    pad_len = n_samples - len(arr)
+                    cleaned_inputs[name] = np.pad(arr, (pad_len, 0), constant_values=0.5)
             else:
                 cleaned_inputs[name] = arr
 
-    # HMM States handling
+    # HMM States handling - Align to n_samples
     if hmm_states is None or len(hmm_states) == 0:
-        print("Warning: hmm_states missing. Filling with 1 (Normal).")
         cleaned_hmm = np.full(n_samples, 1)
     else:
-        cleaned_hmm = hmm_states[:n_samples]
+        # If hmm_states comes from full history (len=250) and n_samples=1
+        if len(hmm_states) > n_samples:
+            cleaned_hmm = hmm_states[-n_samples:]
+        elif len(hmm_states) < n_samples:
+            pad_len = n_samples - len(hmm_states)
+            cleaned_hmm = np.pad(hmm_states, (pad_len, 0), constant_values=1)
+        else:
+            cleaned_hmm = hmm_states
     
-    # One-Hot Encode HMM States (Assuming 3 states: 0, 1, 2)
+    # One-Hot Encode HMM States
     hmm_onehot = np.zeros((n_samples, 3))
     for i in range(n_samples):
         val = cleaned_hmm[i]
         try:
              state = int(val)
         except:
-             state = 1 # fallback
-             
+             state = 1
         if 0 <= state < 3:
             hmm_onehot[i, state] = 1
-        else:
-            print(f"Warning: Unknown HMM state {state} encountered. One-hot vector will be all zeros.")
             
-    # Calculate 1.00x Frequency (Fixed 50-game window on latest history)
+    # Calculate 1.00x Frequency
+    # We need to calculate this based on the *history available at each prediction point*.
+    # If n_samples=1, we just calculate it for the last window.
     bust_freq = np.zeros(n_samples)
+    
     if values is not None and len(values) > 0:
         import pandas as pd
         vals_array = np.array(values)
-        window = max(50, n_samples)
-        tail_vals = vals_array[-window:]
-        is_bust = (tail_vals <= 1.00).astype(int)
+        
+        # If we are predicting for n_samples rows, we essentially need rolling features for the last n_samples.
+        # But 'values' might be the FULL history including the ones we are predicting for?
+        # Usually 'values' passed here is the history context.
+        
+        # Logic: 
+        # If n_samples == 1: Calculate freq on values[-50:]
+        # If n_samples == len(values): Calculate rolling freq on all values
+        
+        # We'll compute full rolling metrics on 'values' then take the last n_samples
+        is_bust = (vals_array <= 1.00).astype(int)
         bust_freq_series = pd.Series(is_bust).rolling(window=50, min_periods=1).mean()
-        tail_freq = bust_freq_series.values
-        if len(tail_freq) >= n_samples:
-            bust_freq = tail_freq[-n_samples:]
+        all_freqs = bust_freq_series.values
+        
+        if len(all_freqs) >= n_samples:
+            bust_freq = all_freqs[-n_samples:]
         else:
-            pad_width = n_samples - len(tail_freq)
-            bust_freq = np.pad(tail_freq, (pad_width, 0), mode='edge')
+            # Pad
+            pad_len = n_samples - len(all_freqs)
+            bust_freq = np.pad(all_freqs, (pad_len, 0), mode='edge')
+    else:
+        # No values provided? 0.0
+        pass
             
     # Handle Transformer Predictions
     # Fix: Only add transformer column if it is NOT None.

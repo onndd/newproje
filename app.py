@@ -302,29 +302,36 @@ if st.button("Add Result & Predict"):
             
     # --- ENSEMBLE PREDICTION ---
     # Prepare Meta Features
-    # Fix: Handle None values by replacing them with 0.5 (neutral) for the meta-learner
-    # The meta-learner expects numeric inputs, not None.
-    real_history = np.array(st.session_state.history[-250:]) if st.session_state.history else np.array([])
-    meta_X = prepare_meta_features(
-        np.array([probs['A'] if probs['A'] is not None else 0.5]),
-        np.array([probs['B'] if probs['B'] is not None else 0.5]),
-        np.array([probs['C'] if probs['C'] is not None else 0.5]),
-        np.array([probs['D'] if probs['D'] is not None else 0.5]),
-        np.array([probs['E'] if probs['E'] is not None else 0.5]),
-        np.array([current_state]),
-        values=real_history,
-        preds_transformer=np.array([probs['T'] if probs['T'] is not None else 0.5]) if probs['T'] is not None else None
-    )
-    
-    if models.get('meta'):
-        final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
-    else:
-        available_probs = [p for p in probs.values() if p is not None]
-        if available_probs:
-            final_prob = np.mean(available_probs)
+    # Fix: Wrap in Try/Except for Robustness
+    try:
+        real_history = np.array(st.session_state.history[-250:]) if st.session_state.history else np.array([])
+        meta_X = prepare_meta_features(
+            np.array([probs['A'] if probs['A'] is not None else 0.5]),
+            np.array([probs['B'] if probs['B'] is not None else 0.5]),
+            np.array([probs['C'] if probs['C'] is not None else 0.5]),
+            np.array([probs['D'] if probs['D'] is not None else 0.5]),
+            np.array([probs['E'] if probs['E'] is not None else 0.5]),
+            np.array([current_state]),
+            values=real_history,
+            preds_transformer=np.array([probs['T'] if probs['T'] is not None else 0.5]) if probs['T'] is not None else None
+        )
+        
+        if models.get('meta'):
+            final_prob = predict_meta(models['meta']['model'], models['meta']['scaler'], meta_X)[0]
         else:
-            st.error("Hiçbir model tahmin üretemedi!")
-            final_prob = 0.0
+            # Soft Voting Fallback
+            available_probs = [p for p in probs.values() if p is not None]
+            if available_probs:
+                final_prob = np.mean(available_probs)
+            else:
+                st.error("Hiçbir model tahmin üretemedi!")
+                final_prob = 0.0
+                
+    except Exception as e:
+        st.error(f"Ensemble/Meta-Learner Error: {e}")
+        st.warning("⚠️ Falling back to simple average due to ensemble error.")
+        available_probs = [p for p in probs.values() if p is not None]
+        final_prob = np.mean(available_probs) if available_probs else 0.0
     
     # --- Display Results ---
     col1, col2, col3 = st.columns(3)
