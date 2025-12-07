@@ -126,6 +126,7 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     # So the logic was actually mathematically fine, BUT explicit separation ensures no offset error.
     # We will pass the full stream.
     
+    from .model_lstm import create_sequences
     X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, train_values, seq_length)
     
     # For validation, we use the stream but only take the parts that result in validation targets
