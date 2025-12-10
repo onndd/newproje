@@ -5,6 +5,26 @@ import os
 import numpy as np
 import pandas as pd
 
+
+def balance_data(X, y, target_class, multiplier=2.0):
+    mask_target = y == target_class
+    mask_other = y != target_class
+    
+    X_target, y_target = X[mask_target], y[mask_target]
+    X_other, y_other = X[mask_other], y[mask_other]
+    
+    import math
+    repeats = math.ceil(multiplier)
+    
+    X_target_balanced = pd.concat([X_target] * repeats, axis=0)
+    y_target_balanced = np.tile(y_target, repeats)
+    
+    X_balanced = pd.concat([X_other, X_target_balanced], axis=0)
+    y_balanced = np.concatenate([y_other, y_target_balanced])
+    
+    perm = np.random.permutation(len(X_balanced))
+    return X_balanced.iloc[perm], y_balanced[perm]
+
 def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3=None):
     """
     Trains MLP models.
@@ -29,30 +49,12 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     
     # P1.5 Model
     # Manual Oversampling for Class Balancing (since MLPClassifier doesn't support class_weight)
-    # Updated Balance Function to target a specific class
-    def balance_data(X, y, target_class, multiplier=2.0):
-        mask_target = y == target_class
-        mask_other = y != target_class
-        
-        X_target, y_target = X[mask_target], y[mask_target]
-        X_other, y_other = X[mask_other], y[mask_other]
-        
-        import math
-        repeats = math.ceil(multiplier)
-        
-        X_target_balanced = pd.concat([X_target] * repeats, axis=0)
-        y_target_balanced = np.tile(y_target, repeats)
-        
-        X_balanced = pd.concat([X_other, X_target_balanced], axis=0)
-        y_balanced = np.concatenate([y_other, y_target_balanced])
-        
-        perm = np.random.permutation(len(X_balanced))
-        return X_balanced.iloc[perm], y_balanced[perm]
     
     # P1.5 Model: Minority is Class 0 (Loss < 1.50) -> ~35%
     # We want to boost Class 0 to prevent "Always Yes"
     print("Training MLP (P1.5) - Balancing Minority (Class 0)...")
     X_t_p15, y_p15_t_balanced = balance_data(X_t, y_p15_t, target_class=0, multiplier=2.0)
+    
     
     params = {
         'hidden_layer_sizes': (256, 128, 64), 
