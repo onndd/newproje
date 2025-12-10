@@ -16,7 +16,7 @@ from jetx_project.model_b import build_memory, train_model_b, save_memory
 from jetx_project.model_lstm import train_model_lstm, save_lstm_models
 from jetx_project.model_lightgbm import train_model_lightgbm, save_lightgbm_models
 from jetx_project.model_mlp import train_model_mlp, save_mlp_models
-from jetx_project.model_hmm import train_categorical_hmm, save_hmm_model, predict_categorical_hmm_states
+from jetx_project.model_hmm import train_categorical_hmm, save_hmm_model, predict_categorical_hmm_states, predict_categorical_hmm_states_causal
 from jetx_project.model_transformer import train_model_transformer, save_transformer_models
 from jetx_project.ensemble import prepare_meta_features, train_meta_learner, save_meta_learner
 from jetx_project.simulation import run_simulation
@@ -44,8 +44,10 @@ def main():
     hmm_model, hmm_map, hmm_bins = train_categorical_hmm(values)
     save_hmm_model(hmm_model, hmm_map, hmm_bins, output_dir='models_standalone')
     
-    # Predict states for all data
-    hmm_states = predict_categorical_hmm_states(hmm_model, values, hmm_map, bins=hmm_bins)
+    # Predict states for all data CAUSALLY to prevent leakage
+    # predict_categorical_hmm_states_causal uses a sliding window (default 300)
+    # ensuring at time t we only know t-window...t
+    hmm_states = predict_categorical_hmm_states_causal(hmm_model, values, hmm_map, bins=hmm_bins, window_size=300)
     
     # 3. Train Model A (CatBoost)
     print("\n[3/9] Training Model A (CatBoost)...")
