@@ -63,10 +63,11 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
             cleaned_inputs[name] = np.full(n_samples, 0.5)
         else:
             if len(arr) != n_samples:
-                # If array is longer (e.g. accidentally passed full history?), truncate to n_samples
-                # But usually, it's safer to just take the last n_samples? 
-                # Or if it's 1 vs 250, we assume the CALLER messed up.
-                # Here we assume standard behavior: truncate if longer, pad/fill if shorter (rare/bad)
+                # Audit Fix: Explicitly log length mismatches instead of silent fix
+                diff = n_samples - len(arr)
+                if abs(diff) > 0:
+                     print(f"Warning: Meta-feature '{name}' length mismatch! Expected {n_samples}, got {len(arr)}. Auto-aligning...")
+
                 if len(arr) > n_samples:
                     # Take LAST n_samples (assuming time series alignment)
                     cleaned_inputs[name] = arr[-n_samples:]

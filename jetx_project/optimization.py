@@ -177,11 +177,43 @@ def optimize_mlp(X, y, n_trials=20, timeout=300):
     print(f"Best MLP params: {study.best_params}")
     return study.best_params
 
-def optimize_lstm(X_train, y_train, X_val, y_val, n_trials=15, timeout=600):
+def optimize_lstm(values, n_trials=15, timeout=600):
     """
     Optimizes LSTM hyperparameters.
+    Accepts raw values, creates sequences internally to match standalone runner logic.
     """
     print(f"--- Starting LSTM Optimization ({n_trials} trials) ---")
+    
+    # Create Sequences (Internal)
+    # Use standard sequence length from config or default 50
+    SEQ_LEN = 50 
+    
+    # 1. Scale
+    from sklearn.preprocessing import MinMaxScaler
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    values_log = np.log1p(values)
+    values_scaled = scaler.fit_transform(values_log.reshape(-1, 1))
+    
+    # 2. Create Sequences
+    X, y = [], []
+    for i in range(len(values_scaled) - SEQ_LEN):
+        X.append(values_scaled[i : i + SEQ_LEN])
+        y.append(values_scaled[i + SEQ_LEN])
+    
+    X = np.array(X)
+    y = np.array(y)
+    
+    # Create Binary Targets
+    # Just like training, we optimize for best P1.5 accuracy mostly, or average?
+    # Actually, optimize_lstm usually returned ONE set of params for architecture.
+    # We will optimize for P1.5 as primary proxy.
+    y_true_val = np.expm1(y) # Back to real scale
+    y_p15 = (y_true_val >= 1.50).astype(int).flatten()
+    
+    # Split
+    split_idx = int(len(X) * 0.85)
+    X_train, X_val = X[:split_idx], X[split_idx:]
+    y_train, y_val = y_p15[:split_idx], y_p15[split_idx:]
     
     def objective(trial):
         seq_len = X_train.shape[1]

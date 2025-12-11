@@ -155,6 +155,18 @@ def train_categorical_hmm(values, n_components=3, n_bins=5, bins=None):
         bins = np.array(HMM_BIN_EDGES, dtype=float)
     # Hedeflenen bin sayısı, kenar sayısından türetilir
     n_bins = len(bins) - 1
+    
+    # Audit Fix: Dynamic n_components based on bin count to allow scalability
+    # Rule of thumb from audit: len(bins) - 2. e.g. 5 edges -> 3 states. 6 edges -> 4 states.
+    # We maintain a minimum of 3 states (Cold, Normal, Hot) unless bins are very few.
+    dynamic_components = max(3, len(bins) - 2)
+    
+    # If the user passed default 3, but bins suggest more, we upgrade.
+    # If user passed explicit distinct value (not default), we might keep it, but here we update local logic.
+    if n_components == 3 and dynamic_components != 3:
+         print(f"HMM: Auto-adjusting n_components from 3 to {dynamic_components} based on bin granularity.")
+         n_components = dynamic_components
+         
     discretized = pd.cut(s_values, bins=bins, labels=False, include_lowest=True)
     # Handle out of bounds
     discretized = discretized.fillna(len(bins)-2).astype(int)
