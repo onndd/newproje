@@ -99,8 +99,15 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
              state = int(val)
         except:
              state = 1
+             # Log warning for invalid state if practical (using print here for CLI visibility)
+             print(f"Warning: Invalid HMM state val '{val}' encountered in meta-prep. Defaulting to 1.")
+
         if 0 <= state < 3:
             hmm_onehot[i, state] = 1
+        else:
+            # Fallback for out of bound states (e.g. if we change bin count later)
+            hmm_onehot[i, 1] = 1
+            print(f"Warning: Out-of-bound HMM state '{state}' encountered. Defaulting to 1 (Normal).")
             
     # Calculate 1.00x Frequency
     # We need to calculate this based on the *history available at each prediction point*.

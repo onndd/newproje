@@ -258,7 +258,10 @@ def load_transformer_models(model_dir='.'):
     try:
         model = load_model(
             model_path, 
-            custom_objects={'PositionalEncoding': PositionalEncoding},
+            custom_objects={
+                'PositionalEncoding': PositionalEncoding,
+                'BinaryFocalLoss': BinaryFocalLoss
+            },
             compile=False
         )
         scaler = joblib.load(scaler_path)

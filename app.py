@@ -440,18 +440,31 @@ elif page == "📥 Toplu Veri Girişi":
             _ensure_table_exists(conn)
             cursor = conn.cursor()
             
+            # Use a list to collect values that are successfully staged for DB
+            staged_values = []
+            
             for i, val in enumerate(valid_values):
                 try:
                     cursor.execute("INSERT INTO jetx_results (value) VALUES (?)", (float(val),))
-                    st.session_state.history.append(val)
+                    staged_values.append(val)
                     success_count += 1
                 except Exception as e:
                     fail_count += 1
+                    print(f"DB Insert Error for {val}: {e}")
                 
                 # Update progress
                 progress_bar.progress((i + 1) / len(valid_values))
             
-            conn.commit()
+            # Critical Fix: Commit first, then update RAM
+            try:
+                conn.commit()
+                # Only if commit succeeds, we update the RAM history
+                st.session_state.history.extend(staged_values)
+            except Exception as e:
+                st.error(f"FATAL: Database Commit Failed! RAM was NOT updated. Error: {e}")
+                # Reset success count because nothing was actually saved
+                success_count = 0
+                fail_count = len(valid_values)
             
         # 3. Enforce Limits
         if len(st.session_state.history) > DB_LIMIT:
