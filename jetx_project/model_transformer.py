@@ -213,6 +213,7 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     
     # Predict
     preds = model.predict(X_val)
+    # Keras returns list of arrays [pred_p15, pred_p3]
     preds_p15_prob = preds[0]
     preds_p3_prob = preds[1]
     

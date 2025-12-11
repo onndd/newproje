@@ -70,11 +70,12 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     if params_p15:
         print(f"Using optimized parameters for MLP P1.5: {params_p15}")
         # Make a copy to avoid modifying the original dict if reusable
-        params.update(params_p15)
+        params.update(params_p15.copy())
         
         # Extract os_ratio for data balancing
         if 'os_ratio' in params:
-            target_multiplier = params.pop('os_ratio')
+            target_multiplier = params['os_ratio']
+            del params['os_ratio'] # Explicit delete
             
     # Apply balancing with potentially updated multiplier
     X_t_p15, y_p15_t_balanced = balance_data(X_t, y_p15_t, target_class=0, multiplier=target_multiplier)
@@ -98,10 +99,11 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     }
     if params_p3:
         print(f"Using optimized parameters for MLP P3.0: {params_p3}")
-        params_3.update(params_p3)
+        params_3.update(params_p3.copy())
         
         if 'os_ratio' in params_3:
-            target_multiplier_p3 = params_3.pop('os_ratio')
+            target_multiplier_p3 = params_3['os_ratio']
+            del params_3['os_ratio']
 
     X_t_p3, y_p3_t_balanced = balance_data(X_t, y_p3_t, target_class=1, multiplier=target_multiplier_p3) # Target class 1 for P3 usually (wins)
 

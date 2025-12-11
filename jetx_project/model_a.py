@@ -86,13 +86,16 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     }
     
     # Override if params_p15 provided (from Optuna)
+    # Override if params_p15 provided (from Optuna)
     if params_p15:
         print(f"Using optimized parameters for P1.5: {params_p15}")
-        params.update(params_p15)
+        # Create a COPY to prevent modifying the original dict reference
+        params.update(params_p15.copy())
         
         # Handle 'cw_multiplier' if present (it's a custom param, not for CatBoost init)
         if 'cw_multiplier' in params:
-            multiplier = params.pop('cw_multiplier')
+            multiplier = params['cw_multiplier']
+            del params['cw_multiplier'] # Explicitly remove it
             params['class_weights'] = {0: multiplier, 1: 1.0}
 
     model_p15 = CatBoostClassifier(**params)
@@ -143,11 +146,12 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     # Override from Optuna
     if params_p3:
         print(f"Using optimized parameters for P3.0: {params_p3}")
-        params.update(params_p3)
+        params.update(params_p3.copy())
         
         # Handle 'cw_multiplier' for P3
         if 'cw_multiplier' in params:
-            multiplier = params.pop('cw_multiplier')
+            multiplier = params['cw_multiplier']
+            del params['cw_multiplier']
             params['class_weights'] = {0: multiplier, 1: 1.0}
 
     model_p3 = CatBoostClassifier(**params)
