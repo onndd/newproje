@@ -177,44 +177,69 @@ def optimize_mlp(X, y, n_trials=20, timeout=300):
     print(f"Best MLP params: {study.best_params}")
     return study.best_params
 
-def optimize_lstm(values, n_trials=15, timeout=600):
+def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=15, timeout=600):
     """
     Optimizes LSTM hyperparameters.
-    Accepts raw values, creates sequences internally to match standalone runner logic.
+    Supports TWO signatures for backward compatibility:
+    1. New: optimize_lstm(values, n_trials=...)
+    2. Old: optimize_lstm(X_train, y_train, X_val, y_val, n_trials=...)
     """
     print(f"--- Starting LSTM Optimization ({n_trials} trials) ---")
     
-    # Create Sequences (Internal)
-    # Use standard sequence length from config or default 50
-    SEQ_LEN = 50 
-    
-    # 1. Scale
-    from sklearn.preprocessing import MinMaxScaler
-    scaler = MinMaxScaler(feature_range=(0, 1))
-    values_log = np.log1p(values)
-    values_scaled = scaler.fit_transform(values_log.reshape(-1, 1))
-    
-    # 2. Create Sequences
-    X, y = [], []
-    for i in range(len(values_scaled) - SEQ_LEN):
-        X.append(values_scaled[i : i + SEQ_LEN])
-        y.append(values_scaled[i + SEQ_LEN])
-    
-    X = np.array(X)
-    y = np.array(y)
-    
-    # Create Binary Targets
-    # Just like training, we optimize for best P1.5 accuracy mostly, or average?
-    # Actually, optimize_lstm usually returned ONE set of params for architecture.
-    # We will optimize for P1.5 as primary proxy.
-    y_true_val = np.expm1(y) # Back to real scale
-    y_p15 = (y_true_val >= 1.50).astype(int).flatten()
-    
-    # Split
-    split_idx = int(len(X) * 0.85)
-    X_train, X_val = X[:split_idx], X[split_idx:]
-    y_train, y_val = y_p15[:split_idx], y_p15[split_idx:]
-    
+    # Determine mode
+    if arg2 is not None and arg3 is not None and arg4 is not None:
+        # Legacy Mode: (X_train, y_train, X_val, y_val) passed
+        print("Legacy mode detected: Using provided X/y splits.")
+        X_train, y_train, X_val, y_val = input_data, arg2, arg3, arg4
+        
+        # In legacy mode, we assume the user passed binary targets (P1.5 or P3)
+        # We assume the caller knows what they are optimizing for.
+        # But wait, standalone runner expects TWO return values (best_p15, best_p3).
+        # Notebook expects ONE return value (best_params).
+        # We must return what is expected based on context.
+        # IF legacy mode -> Return only ONE params dict (Objective logic follows)
+        
+    else:
+        # New Mode: Raw values passed
+        print("New mode detected: Generating sequences from values.")
+        values = input_data
+        
+        # Create Sequences (Internal)
+        SEQ_LEN = 50 
+        
+        # 1. Scale
+        from sklearn.preprocessing import MinMaxScaler
+        scaler = MinMaxScaler(feature_range=(0, 1))
+        values_log = np.log1p(values)
+        values_scaled = scaler.fit_transform(values_log.reshape(-1, 1))
+        
+        # 2. Create Sequences
+        X, y = [], []
+        for i in range(len(values_scaled) - SEQ_LEN):
+            X.append(values_scaled[i : i + SEQ_LEN])
+            y.append(values_scaled[i + SEQ_LEN])
+        
+        X = np.array(X)
+        y = np.array(y)
+        
+        # Primary Optimization Target: P1.5 (Since it's the safest base)
+        y_true_val = np.expm1(y) 
+        y_p15 = (y_true_val >= 1.50).astype(int).flatten()
+        
+        # Split
+        split_idx = int(len(X) * 0.85)
+        X_train, X_val = X[:split_idx], X[split_idx:]
+        y_train, y_val = y_p15[:split_idx], y_p15[split_idx:]
+        
+        # For new mode (Standalone Runner), we strictly need to return TWO dictionaries
+        # because the calling line is: bp_lstm_p15, bp_lstm_p3 = optimize_lstm(values)
+        # But standard optimization usually runs once for architecture.
+        # We will duplicate the params for now or run two studies? 
+        # Running two studies is cleaner but slower.
+        # For now, let's optimize ONCE for P1.5 and return same architecture for both.
+        # This saves time and usually architecture (layers/units) transfers well.
+        # We will return (best_params, best_params)
+        
     def objective(trial):
         seq_len = X_train.shape[1]
         
@@ -269,4 +294,12 @@ def optimize_lstm(values, n_trials=15, timeout=600):
     study.optimize(objective, n_trials=n_trials, timeout=timeout)
     
     print(f"Best LSTM params: {study.best_params}")
-    return study.best_params
+    
+    # Polymorphic Return
+    if arg2 is not None:
+        # Legacy Mode (Notebook): Expects single return
+        return study.best_params
+    else:
+        # New Mode (Runner): Expects tuple (p15, p3)
+        # We use the same best params for both for now to save compute
+        return study.best_params, study.best_params
