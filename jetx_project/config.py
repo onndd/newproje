@@ -13,7 +13,17 @@ WINDOWS = [50, 100, 200, 500]
 # Bin 2: 1.50 - 1.99 (Target Zone)
 # Bin 3: 2.00 - 4.99 (High)
 # Bin 4: 5.00+ (Very High)
-HMM_BIN_EDGES = [1.00, 1.20, 1.49, 2.00, 5.00, 10000.0]
+# HMM Binning Configuration
+# Critical Update: Finer granularity in the <1.50 danger zone.
+# This forces the HMM to distinguish between "Instant Death" (1.0-1.1) and "Near Miss" (1.3-1.4).
+# New Bins: [1.00, 1.10, 1.20, 1.35, 1.49, 1.99, 10000.0]
+# Bin 0: 1.00 - 1.09 (Extreme Risk)
+# Bin 1: 1.10 - 1.19 (High Risk)
+# Bin 2: 1.20 - 1.34 (Medium Risk)
+# Bin 3: 1.35 - 1.49 (Low Risk / Pre-Target)
+# Bin 4: 1.50 - 1.99 (Target Zone)
+# Bin 5: 2.00+ (Bonus Zone)
+HMM_BIN_EDGES = [1.00, 1.10, 1.20, 1.35, 1.49, 1.99, 10000.0]
 
 # NOTE: Ranges are now defined as INCLUSIVE [lower, upper].
 # We assume data has 2 decimal places.

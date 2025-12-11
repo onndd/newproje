@@ -21,15 +21,15 @@ def calculate_profit_score(y_true, y_pred):
         
     tn, fp, fn, tp = cm.ravel()
     
-    # Custom Score Formula:
-    # + TP * 10 (Win)
-    # + TN * 5 (Save)
-    # - FP * 50 (Loss - HUGE PENALTY)
-    # - FN * 2 (Missed Opp)
+    # Custom Score Formula (Sniper Logic):
+    # + TP * 100 (Big Reward for Risk - Incentive to Enter)
+    # + TN * 1   (Minimal Reward for Safety - Prevent TN Farming)
+    # - FP * 500 (DEATH PENALTY - Absolute Safety Requirement)
+    # - FN * 20  (FOMO Penalty - Don't be too coward)
     # + Precision * 100 (Reliability Bonus)
     
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-    score = (tp * 10) + (tn * 5) - (fp * 50) - (fn * 2) + (precision * 100)
+    score = (tp * 100) + (tn * 1) - (fp * 500) - (fn * 20) + (precision * 100)
     return score
 
 def optimize_catboost(X, y, n_trials=20, timeout=600):
