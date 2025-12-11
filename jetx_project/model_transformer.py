@@ -95,8 +95,8 @@ def build_transformer_model(seq_length, num_heads=4, key_dim=32, ff_dim=64):
     loss_p3 = BinaryFocalLoss(gamma=2.0, alpha=0.85) # Higher alpha for P3 (more imbalanced)
     
     model.compile(optimizer='adam', 
-                  loss={'p15': loss_p15, 'p3': loss_p3},
-                  metrics={'p15': 'accuracy', 'p3': 'accuracy'})
+                  loss=[loss_p15, loss_p3],
+                  metrics=['accuracy', 'accuracy'])
     return model
 
 def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
@@ -116,6 +116,7 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     scaler.fit(train_values_log.reshape(-1, 1))
     
     train_scaled = scaler.transform(train_values_log.reshape(-1, 1))
+    val_scaled = scaler.transform(val_values_log.reshape(-1, 1))
     
     # Validation Context
     # Note: We append validation targets to context to allow autoregressive evaluation (Teacher Forcing).
@@ -182,9 +183,6 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     # P3.0 Sample Weights
     sample_weight_p3 = compute_sample_weight(class_weight='balanced', y=y_p3_train)
     
-    # Pass as dictionary for multi-output
-    sample_weights = {'p15': sample_weight_p15, 'p3': sample_weight_p3}
-    
     print("Computed sample weights for Transformer multi-output training.")
     
     callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
@@ -199,13 +197,13 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     print("Training Transformer (The Attention)...")
     model.fit(
         X_train,
-        {'p15': y_p15_train, 'p3': y_p3_train},
-        validation_data=(X_val, {'p15': y_p15_val, 'p3': y_p3_val}),
+        [y_p15_train, y_p3_train],
+        validation_data=(X_val, [y_p15_val, y_p3_val]),
         epochs=epochs,
         batch_size=batch_size,
         callbacks=callbacks,
         verbose=1,
-        sample_weight=sample_weights
+        sample_weight=[sample_weight_p15, sample_weight_p3]
     )
               
     # Detailed Reporting
