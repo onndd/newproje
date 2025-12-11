@@ -27,11 +27,7 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     """
     # 1. Determine n_samples safely from PREDICTIONS first (not values)
     # The app might pass values (history=250) but only 1 prediction.
-    # We must trust the prediction arrays as the ground truth for "rows to predict".
-    n_samples = 0
-    
     # Priority check for n_samples from predictions
-    if preds_a is not None and len(preds_a) > 0:
     # 0. Check n_samples
     if n_samples is None:
         # Infer from preds_a
