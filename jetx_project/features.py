@@ -158,19 +158,59 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     new_features['is_instant_bust'] = (values <= 1.05).shift(1).fillna(0.0).astype(float)
     
     # 6. Long Streak (>=8) Analysis (Causal)
-    # Create binary color series (0: Red, 1: Green)
+    # Fix: Use PREVIOUS game colors to prevent leakage.
+    # At time t, we only know the color of t-1.
     colors = (values >= 1.5).astype(int)
-    # Run breaks (cumulative change points)
-    run_breaks = colors.ne(colors.shift()).cumsum()
-    # Streak length up to current point
-    streak_len = colors.groupby(run_breaks).cumcount() + 1
-    streak_len_prev = streak_len.shift(1).fillna(0)
-    # Long streak ended at previous step?
-    long_streak_end = (streak_len_prev >= 8) & colors.ne(colors.shift())
-    last_long_end_idx = pd.Series(np.where(long_streak_end, df.index - 1, np.nan), index=df.index).ffill()
+    colors_prev = colors.shift(1).fillna(0) # Default to 0 (Red) for start
+    
+    # Run breaks on PREVIOUS games
+    # If color changes between t-2 and t-1, a run ended at t-2.
+    # But for simplicity, we track runs purely experienced in history.
+    run_breaks = colors_prev.ne(colors_prev.shift()).cumsum()
+    
+    # Streak length of the run ending at t-1
+    streak_len_prev = colors_prev.groupby(run_breaks).cumcount() + 1
+    
+    # Did a long streak (>8) END at t-1?
+    # This happens if:
+    # 1. The run 'streak_len_prev' was reset? No.
+    # Correct logic for "Streak Ended":
+    # A streak of length L ends at index i if color[i] != color[i-1].
+    # But we are working with colors_prev.
+    # If colors_prev[t] != colors_prev[t-1], it means the game result (t-1) was different from (t-2).
+    # This means the streak that was active up to t-2 has ended.
+    
+    # Let's reconstruct the report's logic which is safer:
+    # We want to identify the index where a long streak finished.
+    # We need to know the length of the streak BEFORE it broke.
+    # To do this without complex lookback, we can iterate or use a shifted approach.
+    
+    # Simplified Robust Approach:
+    # 1. Identify start of runs on colors_prev.
+    # 2. Identify length of run just finished.
+    
+    # Alternative (Simpler):
+    # Just calculate is_long_streak_active on t-1.
+    is_long_streak_prev = (streak_len_prev >= 8)
+    
+    # If it WAS active at t-2, and NOT active at t-1 (because color changed), then it ended.
+    # But streak_len_prev accounts for the current run length of colors_prev.
+    # If colors_prev changed, streak_len_prev resets to 1.
+    # So if streak_len_prev dropped from >=8 to 1, then a long streak ended.
+    
+    streak_len_prev_lag = streak_len_prev.shift(1).fillna(0)
+    long_streak_end = (streak_len_prev_lag >= 8) & (streak_len_prev == 1)
+    
+    last_long_end_idx = pd.Series(np.where(long_streak_end, df.index, np.nan), index=df.index).ffill()
     new_features['games_since_long_streak'] = (df.index - last_long_end_idx).fillna(200)
-    new_features['last_long_streak_type'] = colors.where(long_streak_end).ffill().fillna(0)
-    new_features['last_long_streak_len'] = streak_len_prev.where(long_streak_end).ffill().fillna(0)
+    
+    # Type and Length of the streak that ended
+    # If long_streak_end is True at t, it means the streak ended at t-1 (relative to prev).
+    # The COLOR of that streak was colors_prev.shift(1) (aka t-2).
+    # The LENGTH was streak_len_prev_lag.
+    
+    new_features['last_long_streak_type'] = colors_prev.shift(1).where(long_streak_end).ffill().fillna(0)
+    new_features['last_long_streak_len'] = streak_len_prev_lag.where(long_streak_end).ffill().fillna(0)
     
     # 7. Medium Win Streak
     # Games since NOT (1.5 <= val <= 3.0)

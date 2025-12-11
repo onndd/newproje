@@ -313,15 +313,21 @@ if page == "🚀 Canlı Tahmin":
         # Fix: Wrap in Try/Except for Robustness
         try:
             real_history = np.array(st.session_state.history[-250:]) if st.session_state.history else np.array([])
+            # Retrieve HMM component count if available
+            n_hmm_components = 3
+            if models.get('hmm') and hasattr(models['hmm']['model'], 'n_components'):
+                n_hmm_components = models['hmm']['model'].n_components
+
             meta_X = prepare_meta_features(
-                np.array([probs['A'] if probs['A'] is not None else 0.5]),
-                np.array([probs['B'] if probs['B'] is not None else 0.5]),
-                np.array([probs['C'] if probs['C'] is not None else 0.5]),
-                np.array([probs['D'] if probs['D'] is not None else 0.5]),
-                np.array([probs['E'] if probs['E'] is not None else 0.5]),
-                np.array([current_state]),
+                preds_a=np.array([probs['A'] if probs['A'] is not None else 0.5]),
+                preds_b=np.array([probs['B'] if probs['B'] is not None else 0.5]),
+                preds_c=np.array([probs['C'] if probs['C'] is not None else 0.5]),
+                preds_d=np.array([probs['D'] if probs['D'] is not None else 0.5]),
+                preds_e=np.array([probs['E'] if probs['E'] is not None else 0.5]),
+                hmm_states=np.array([current_state]),
                 values=real_history,
-                preds_transformer=np.array([probs['T'] if probs['T'] is not None else 0.5]) if probs['T'] is not None else None
+                preds_transformer=np.array([probs['T'] if probs['T'] is not None else 0.5]) if probs['T'] is not None else None,
+                n_hmm_components=n_hmm_components
             )
             
             if models.get('meta'):

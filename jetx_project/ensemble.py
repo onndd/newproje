@@ -32,21 +32,12 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     
     # Priority check for n_samples from predictions
     if preds_a is not None and len(preds_a) > 0:
+    # 0. Check n_samples
+    if n_samples is None:
+        # Infer from preds_a
+        if preds_a is None or len(preds_a) == 0:
+            raise ValueError("preds_a cannot be None or empty if n_samples is not provided.")
         n_samples = len(preds_a)
-    elif preds_b is not None and len(preds_b) > 0:
-        n_samples = len(preds_b)
-    elif preds_c is not None and len(preds_c) > 0:
-        n_samples = len(preds_c)
-    elif preds_d is not None and len(preds_d) > 0:
-        n_samples = len(preds_d)
-    elif preds_e is not None and len(preds_e) > 0:
-        n_samples = len(preds_e)
-    # Only fall back to values length if NO predictions exist (unlikely but possible during init)
-    elif values is not None:
-        n_samples = len(values)
-        
-    if n_samples == 0:
-        return np.array([])
         
     inputs = {
         "preds_a": preds_a,
@@ -56,59 +47,50 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         "preds_e": preds_e,
     }
     
-    # Clean Inputs filling Nones & Alignment
+    # Clean Inputs & strict Alignment
     cleaned_inputs = {}
     for name, arr in inputs.items():
         if arr is None or len(arr) == 0:
             cleaned_inputs[name] = np.full(n_samples, 0.5)
         else:
             if len(arr) != n_samples:
-                # Audit Fix: Explicitly log length mismatches instead of silent fix
-                diff = n_samples - len(arr)
-                if abs(diff) > 0:
-                     print(f"Warning: Meta-feature '{name}' length mismatch! Expected {n_samples}, got {len(arr)}. Auto-aligning...")
-
-                if len(arr) > n_samples:
-                    # Take LAST n_samples (assuming time series alignment)
-                    cleaned_inputs[name] = arr[-n_samples:]
-                else:
-                    # Shorter? Fill with 0.5 for missing slots (or pad first/last)
-                    # This is a critical error state usually, but let's be robust:
-                    pad_len = n_samples - len(arr)
-                    cleaned_inputs[name] = np.pad(arr, (pad_len, 0), constant_values=0.5)
+                # Audit Fix: Strict Error for length mismatch
+                # Silent padding caused drift. We must fail fast.
+                raise ValueError(f"CRITICAL: Meta-feature '{name}' length mismatch! Expected {n_samples}, got {len(arr)}. Alignment error in pipeline.")
             else:
                 cleaned_inputs[name] = arr
 
     # HMM States handling - Align to n_samples
     if hmm_states is None or len(hmm_states) == 0:
-        cleaned_hmm = np.full(n_samples, 1)
+        cleaned_hmm = np.full(n_samples, 1) # Default Normal
     else:
         # If hmm_states comes from full history (len=250) and n_samples=1
         if len(hmm_states) > n_samples:
             cleaned_hmm = hmm_states[-n_samples:]
         elif len(hmm_states) < n_samples:
-            pad_len = n_samples - len(hmm_states)
-            cleaned_hmm = np.pad(hmm_states, (pad_len, 0), constant_values=1)
+            raise ValueError(f"CRITICAL: HMM States length mismatch! Expected {n_samples}, got {len(hmm_states)}.")
         else:
             cleaned_hmm = hmm_states
     
-    # One-Hot Encode HMM States
-    hmm_onehot = np.zeros((n_samples, 3))
+    # One-Hot Encode HMM States (Dynamic)
+    hmm_onehot = np.zeros((n_samples, n_hmm_components))
     for i in range(n_samples):
         val = cleaned_hmm[i]
         try:
-             state = int(val)
+            state = int(val)
         except:
-             state = 1
-             # Log warning for invalid state if practical (using print here for CLI visibility)
-             print(f"Warning: Invalid HMM state val '{val}' encountered in meta-prep. Defaulting to 1.")
+            state = 1 # Default Normal
+            print(f"Warning: Invalid HMM state val '{val}'. Defaulting to 1.")
 
-        if 0 <= state < 3:
+        if 0 <= state < n_hmm_components:
             hmm_onehot[i, state] = 1
         else:
-            # Fallback for out of bound states (e.g. if we change bin count later)
-            hmm_onehot[i, 1] = 1
-            print(f"Warning: Out-of-bound HMM state '{state}' encountered. Defaulting to 1 (Normal).")
+            # Fallback for out of bound states
+            # If we trained with 5 states but predict with 3? Or vice versa.
+            # We map to middle state (approximate)
+            middle_state = n_hmm_components // 2
+            hmm_onehot[i, middle_state] = 1
+            print(f"Warning: Out-of-bound HMM state '{state}' (Max: {n_hmm_components-1}). Defaulting to {middle_state}.")
             
     # Calculate 1.00x Frequency
     # We need to calculate this based on the *history available at each prediction point*.
@@ -119,15 +101,10 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         import pandas as pd
         vals_array = np.array(values)
         
-        # If we are predicting for n_samples rows, we essentially need rolling features for the last n_samples.
-        # But 'values' might be the FULL history including the ones we are predicting for?
-        # Usually 'values' passed here is the history context.
-        
         # Logic: 
         # If n_samples == 1: Calculate freq on values[-50:]
         # If n_samples == len(values): Calculate rolling freq on all values
         
-        # We'll compute full rolling metrics on 'values' then take the last n_samples
         is_bust = (vals_array <= 1.00).astype(int)
         bust_freq_series = pd.Series(is_bust).rolling(window=50, min_periods=1).mean()
         all_freqs = bust_freq_series.values
@@ -135,17 +112,13 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         if len(all_freqs) >= n_samples:
             bust_freq = all_freqs[-n_samples:]
         else:
-            # Pad
+            # Pad is okay here because it's feature extraction from history, not model prediction alignment
             pad_len = n_samples - len(all_freqs)
             bust_freq = np.pad(all_freqs, (pad_len, 0), mode='edge')
     else:
-        # No values provided? 0.0
         pass
             
     # Handle Transformer Predictions
-    # Fix: Only add transformer column if it is NOT None.
-    # This prevents shape mismatch if the meta-learner was trained without it.
-    
     feature_list = [
         cleaned_inputs["preds_a"],
         cleaned_inputs["preds_b"],

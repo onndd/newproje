@@ -207,29 +207,42 @@ def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=15, time
         # Create Sequences (Internal)
         SEQ_LEN = 50 
         
-        # 1. Scale
+        # 1. Split Raw Data FIRST (Leakage Fix)
+        # Note: We need enough data for sequences.
+        # We split 'values' directly.
+        split_idx = int(len(values) * 0.85)
+        train_values = values[:split_idx]
+        val_values = values[split_idx:]
+        
+        # 2. Scale (Fit only on TRAIN)
         from sklearn.preprocessing import MinMaxScaler
         scaler = MinMaxScaler(feature_range=(0, 1))
-        values_log = np.log1p(values)
-        values_scaled = scaler.fit_transform(values_log.reshape(-1, 1))
         
-        # 2. Create Sequences
-        X, y = [], []
-        for i in range(len(values_scaled) - SEQ_LEN):
-            X.append(values_scaled[i : i + SEQ_LEN])
-            y.append(values_scaled[i + SEQ_LEN])
+        train_log = np.log1p(train_values)
+        val_log = np.log1p(val_values)
         
-        X = np.array(X)
-        y = np.array(y)
+        train_scaled = scaler.fit_transform(train_log.reshape(-1, 1))
+        val_scaled = scaler.transform(val_log.reshape(-1, 1))
         
-        # Primary Optimization Target: P1.5 (Since it's the safest base)
-        y_true_val = np.expm1(y) 
-        y_p15 = (y_true_val >= 1.50).astype(int).flatten()
+        # 3. Create Sequences
+        def create_sequences(data, seq_len):
+            X, y = [], []
+            for i in range(len(data) - seq_len):
+                X.append(data[i : i + seq_len])
+                y.append(data[i + seq_len])
+            return np.array(X), np.array(y)
+            
+        X_train, y_train_scaled = create_sequences(train_scaled, SEQ_LEN)
+        X_val, y_val_scaled = create_sequences(val_scaled, SEQ_LEN)
         
-        # Split
-        split_idx = int(len(X) * 0.85)
-        X_train, X_val = X[:split_idx], X[split_idx:]
-        y_train, y_val = y_p15[:split_idx], y_p15[split_idx:]
+        # Target Conversion (Scaled -> Binary)
+        # We need "Real" values to determine binary target >1.50
+        # Inverse transform y
+        y_train_real = np.expm1(scaler.inverse_transform(y_train_scaled))
+        y_val_real = np.expm1(scaler.inverse_transform(y_val_scaled))
+        
+        y_train = (y_train_real >= 1.50).astype(int).flatten()
+        y_val = (y_val_real >= 1.50).astype(int).flatten()
         
         # For new mode (Standalone Runner), we strictly need to return TWO dictionaries
         # because the calling line is: bp_lstm_p15, bp_lstm_p3 = optimize_lstm(values)
