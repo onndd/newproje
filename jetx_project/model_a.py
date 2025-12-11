@@ -89,6 +89,11 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     if params_p15:
         print(f"Using optimized parameters for P1.5: {params_p15}")
         params.update(params_p15)
+        
+        # Handle 'cw_multiplier' if present (it's a custom param, not for CatBoost init)
+        if 'cw_multiplier' in params:
+            multiplier = params.pop('cw_multiplier')
+            params['class_weights'] = {0: multiplier, 1: 1.0}
 
     model_p15 = CatBoostClassifier(**params)
     model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))
@@ -139,6 +144,11 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     if params_p3:
         print(f"Using optimized parameters for P3.0: {params_p3}")
         params.update(params_p3)
+        
+        # Handle 'cw_multiplier' for P3
+        if 'cw_multiplier' in params:
+            multiplier = params.pop('cw_multiplier')
+            params['class_weights'] = {0: multiplier, 1: 1.0}
 
     model_p3 = CatBoostClassifier(**params)
     model_p3.fit(X_t, y_p3_t, eval_set=(X_val, y_p3_val))

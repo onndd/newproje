@@ -50,6 +50,20 @@ def build_lstm_model(seq_length, units=128, dropout=0.2, dense_units=64):
     model.add(Dense(1, activation='sigmoid'))
     return model
 
+class BinaryFocalLoss(tf.keras.losses.Loss):
+    def __init__(self, gamma=2.0, alpha=0.25, name='binary_focal_loss'):
+        super().__init__(name=name)
+        self.gamma = gamma
+        self.alpha = alpha
+
+    def call(self, y_true, y_pred):
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.clip_by_value(y_pred, 1e-7, 1 - 1e-7)
+        alpha_t = y_true * self.alpha + (1 - y_true) * (1 - self.alpha)
+        p_t = y_true * y_pred + (1 - y_true) * (1 - y_pred)
+        focal_loss = - alpha_t * tf.math.pow(1 - p_t, self.gamma) * tf.math.log(p_t)
+        return tf.reduce_mean(focal_loss)
+
 def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p15=None, params_p3=None):
     """
     Trains LSTM models for P1.5 and P3 with NO DATA LEAKAGE.
@@ -87,19 +101,6 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
     
     print(f"LSTM Sequences: Train ({len(X_train)}), Val ({len(X_val)})")
     
-    # Compute Class Weights (No Upsampling)
-    from sklearn.utils.class_weight import compute_class_weight
-    
-    classes_p15 = np.unique(y_p15_train)
-    weights_p15 = compute_class_weight(class_weight='balanced', classes=classes_p15, y=y_p15_train)
-    class_weight_p15 = dict(zip(classes_p15, weights_p15))
-    print(f"P1.5 Class Weights: {class_weight_p15}")
-    
-    classes_p3 = np.unique(y_p3_train)
-    weights_p3 = compute_class_weight(class_weight='balanced', classes=classes_p3, y=y_p3_train)
-    class_weight_p3 = dict(zip(classes_p3, weights_p3))
-    print(f"P3.0 Class Weights: {class_weight_p3}")
-
     callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
     
     # Define Metrics
@@ -114,16 +115,31 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
         'learning_rate': 0.001, 'batch_size': batch_size
     }
     if params_p15:
-        p15_args.update(params_p15)
+        # Clean params if needed
+        clean_params = {k: v for k, v in params_p15.items() if k in ['units1', 'dropout1', 'units2', 'dropout2', 'dense_units', 'lr', 'batch_size']}
+        # Map optuna names to function names if necessary or just update
+        # Our optimization.py uses 'units1', 'units2' etc. but `build_lstm_model` uses simple `units`.
+        # We need to adapt the build function or the args.
+        # Let's adapt args to match what build_lstm_model expects (simple 2-layer) or update build_lstm_model to be flexible.
+        # For simplicity, we'll map 'units1' -> 'units' if present.
+        
+        if 'units1' in params_p15: p15_args['units'] = params_p15['units1']
+        if 'dropout1' in params_p15: p15_args['dropout'] = params_p15['dropout1']
+        if 'dense_units' in params_p15: p15_args['dense_units'] = params_p15['dense_units']
+        if 'lr' in params_p15: p15_args['learning_rate'] = params_p15['lr']
+        if 'batch_size' in params_p15: p15_args['batch_size'] = params_p15['batch_size']
         
     model_p15 = build_lstm_model(seq_length, units=p15_args['units'], dropout=p15_args['dropout'], dense_units=p15_args['dense_units'])
     
     opt = tf.keras.optimizers.Adam(learning_rate=p15_args['learning_rate'])
-    model_p15.compile(optimizer=opt, loss='binary_crossentropy', metrics=metrics)
+    
+    # Use Focal Loss for P1.5 to fix "Always No" issue
+    # Alpha 0.6 means we give slightly more weight to Class 1 (if 1 is minority importance) or handle imbalance
+    model_p15.compile(optimizer=opt, loss=BinaryFocalLoss(gamma=2.0, alpha=0.60), metrics=metrics)
     
     model_p15.fit(X_train, y_p15_train, validation_data=(X_val, y_p15_val),
-                  epochs=epochs, batch_size=p15_args['batch_size'], callbacks=callbacks, verbose=1,
-                  class_weight=class_weight_p15)
+                  epochs=epochs, batch_size=p15_args['batch_size'], callbacks=callbacks, verbose=1)
+                  # Removed class_weight because Focal Loss handles it internally via Alpha
                   
     # --- P3.0 Model ---
     print("Training LSTM (P3.0)...")
@@ -132,16 +148,21 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
         'learning_rate': 0.001, 'batch_size': batch_size
     }
     if params_p3:
-        p3_args.update(params_p3)
+        if 'units1' in params_p3: p3_args['units'] = params_p3['units1']
+        if 'dropout1' in params_p3: p3_args['dropout'] = params_p3['dropout1']
+        if 'dense_units' in params_p3: p3_args['dense_units'] = params_p3['dense_units']
+        if 'lr' in params_p3: p3_args['learning_rate'] = params_p3['lr']
+        if 'batch_size' in params_p3: p3_args['batch_size'] = params_p3['batch_size']
         
     model_p3 = build_lstm_model(seq_length, units=p3_args['units'], dropout=p3_args['dropout'], dense_units=p3_args['dense_units'])
     
     opt_3 = tf.keras.optimizers.Adam(learning_rate=p3_args['learning_rate'])
-    model_p3.compile(optimizer=opt_3, loss='binary_crossentropy', metrics=metrics)
+    # P3 is also imbalanced, Focal Loss helps
+    model_p3.compile(optimizer=opt_3, loss=BinaryFocalLoss(gamma=2.0, alpha=0.70), metrics=metrics)
     
     model_p3.fit(X_train, y_p3_train, validation_data=(X_val, y_p3_val),
-                 epochs=epochs, batch_size=p3_args['batch_size'], callbacks=callbacks, verbose=1,
-                 class_weight=class_weight_p3)
+                 epochs=epochs, batch_size=p3_args['batch_size'], callbacks=callbacks, verbose=1)
+
                  
     # Detailed Reporting
     from sklearn.metrics import confusion_matrix, classification_report
@@ -191,8 +212,9 @@ def load_lstm_models(model_dir='.'):
         return None, None, None
         
     # Fix: compile=False for Apple Silicon/Inference safety
-    model_p15 = load_model(p15_path, compile=False)
-    model_p3 = load_model(p3_path, compile=False)
+    # Add BinaryFocalLoss to custom_objects just in case, though compile=False usually skips it
+    model_p15 = load_model(p15_path, custom_objects={'BinaryFocalLoss': BinaryFocalLoss}, compile=False)
+    model_p3 = load_model(p3_path, custom_objects={'BinaryFocalLoss': BinaryFocalLoss}, compile=False)
     scaler = joblib.load(scaler_path)
     
     return model_p15, model_p3, scaler

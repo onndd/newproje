@@ -25,11 +25,17 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
         'min_child_samples': 10, # Allow learning from fewer samples
         'subsample': 0.8,
         'colsample_bytree': 0.8,
-        'class_weight': 'balanced'
+        'subsample': 0.8,
+        'colsample_bytree': 0.8,
+        # 'class_weight': 'balanced' # Removed aggressive balancing to reduce FP
     }
     if params_p15:
         print(f"Using optimized parameters for LightGBM P1.5: {params_p15}")
         params.update(params_p15)
+        
+        # Ensure we don't pass 'class_weight' if it's None (Optuna might pass it)
+        if 'class_weight' in params and params['class_weight'] is None:
+            params.pop('class_weight') # Let LGBM handle spread naturally or use scale_pos_weight
         
     clf_p15 = lgb.LGBMClassifier(**params)
     clf_p15.fit(X_t, y_p15_t, eval_set=[(X_val, y_p15_val)], eval_metric='logloss', 
@@ -44,11 +50,16 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
         'min_child_samples': 10,
         'subsample': 0.8,
         'colsample_bytree': 0.8,
-        'class_weight': 'balanced' # Handle class imbalance
+        'subsample': 0.8,
+        'colsample_bytree': 0.8,
+        # 'class_weight': 'balanced' # Removed mostly, let Optuna decide
     }
     if params_p3:
         print(f"Using optimized parameters for LightGBM P3.0: {params_p3}")
         params_3.update(params_p3)
+        
+        if 'class_weight' in params_3 and params_3['class_weight'] is None:
+            params_3.pop('class_weight')
         
     clf_p3 = lgb.LGBMClassifier(**params_3)
     clf_p3.fit(X_t, y_p3_t, eval_set=[(X_val, y_p3_val)], eval_metric='logloss',
