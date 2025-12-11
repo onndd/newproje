@@ -82,4 +82,5 @@ SET6_RANGES = [
 DB_PATH = 'jetx.db'
 
 # Central DB read limit to avoid OOM across scripts
-DB_LIMIT = 2000
+# DB_LIMIT = 2000 # Eski limit (Veri körlüğüne sebep oluyordu)
+DB_LIMIT = 50000 # Yeni limit (Yeterli veri için)

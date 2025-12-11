@@ -38,21 +38,27 @@ def main():
         print("Error: Not enough data to train (need > 1000).")
         return
 
+    # Import Optimization
+    from jetx_project.optimization import optimize_catboost, optimize_lightgbm, optimize_mlp, optimize_lstm
+    
     # 2. Train HMM (First, as others need states)
     print("\n[2/9] Training HMM (Categorical)...")
-    # Fix: Use train_categorical_hmm to match the 3 return values expected (model, map, bins)
     hmm_model, hmm_map, hmm_bins = train_categorical_hmm(values)
     save_hmm_model(hmm_model, hmm_map, hmm_bins, output_dir='models_standalone')
     
-    # Predict states for all data CAUSALLY to prevent leakage
-    # predict_categorical_hmm_states_causal uses a sliding window (default 300)
-    # ensuring at time t we only know t-window...t
     hmm_states = predict_categorical_hmm_states_causal(hmm_model, values, hmm_map, bins=hmm_bins, window_size=300)
     
-    # 3. Train Model A (CatBoost)
-    print("\n[3/9] Training Model A (CatBoost)...")
+    # Data Prep Common
     X_a, y_p15_a, y_p3_a, y_x_a = prepare_model_a_data(values, hmm_states)
-    ma_p15, ma_p3, ma_x = train_model_a(X_a, y_p15_a, y_p3_a, y_x_a)
+    
+    # 3. Train Model A (CatBoost) with Optimization
+    print("\n[3/9] Optimizing & Training Model A (CatBoost)...")
+    # Optimize P1.5
+    bp_cat_p15 = optimize_catboost(X_a, y_p15_a, n_trials=15)
+    # Optimize P3.0
+    bp_cat_p3 = optimize_catboost(X_a, y_p3_a, n_trials=15)
+    
+    ma_p15, ma_p3, ma_x = train_model_a(X_a, y_p15_a, y_p3_a, y_x_a, params_p15=bp_cat_p15, params_p3=bp_cat_p3)
     save_models(ma_p15, ma_p3, ma_x, output_dir='models_standalone')
     
     # 4. Train Model B (Memory)
@@ -61,20 +67,26 @@ def main():
     nbrs, pca = train_model_b(patterns)
     save_memory(nbrs, pca, patterns, targets, output_dir='models_standalone')
     
-    # 5. Train Model C (LSTM)
-    print("\n[5/9] Training Model C (LSTM)...")
-    mc_p15, mc_p3, mc_scaler = train_model_lstm(values)
+    # 5. Train Model C (LSTM) with Optimization
+    print("\n[5/9] Optimizing & Training Model C (LSTM)...")
+    bp_lstm_p15, bp_lstm_p3 = optimize_lstm(values, n_trials=10)
+    mc_p15, mc_p3, mc_scaler = train_model_lstm(values, params_p15=bp_lstm_p15, params_p3=bp_lstm_p3)
     save_lstm_models(mc_p15, mc_p3, mc_scaler, output_dir='models_standalone')
     
-    # 6. Train Model D (LightGBM)
-    print("\n[6/9] Training Model D (LightGBM)...")
-    # Reuse X_a as it has the same features
-    md_p15, md_p3 = train_model_lightgbm(X_a, y_p15_a, y_p3_a)
+    # 6. Train Model D (LightGBM) with Optimization
+    print("\n[6/9] Optimizing & Training Model D (LightGBM)...")
+    bp_lgb_p15 = optimize_lightgbm(X_a, y_p15_a, n_trials=15)
+    bp_lgb_p3 = optimize_lightgbm(X_a, y_p3_a, n_trials=15)
+    
+    md_p15, md_p3 = train_model_lightgbm(X_a, y_p15_a, y_p3_a, params_p15=bp_lgb_p15, params_p3=bp_lgb_p3)
     save_lightgbm_models(md_p15, md_p3, output_dir='models_standalone')
     
-    # 7. Train Model E (MLP)
-    print("\n[7/9] Training Model E (MLP)...")
-    me_p15, me_p3, me_cols = train_model_mlp(X_a, y_p15_a, y_p3_a)
+    # 7. Train Model E (MLP) with Optimization
+    print("\n[7/9] Optimizing & Training Model E (MLP)...")
+    bp_mlp_p15 = optimize_mlp(X_a, y_p15_a, n_trials=10)
+    bp_mlp_p3 = optimize_mlp(X_a, y_p3_a, n_trials=10)
+    
+    me_p15, me_p3, me_cols = train_model_mlp(X_a, y_p15_a, y_p3_a, params_p15=bp_mlp_p15, params_p3=bp_mlp_p3)
     save_mlp_models(me_p15, me_p3, me_cols, output_dir='models_standalone')
     
     # 8. Train Transformer

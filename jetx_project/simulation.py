@@ -102,20 +102,26 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
         if kasa3.max_drawdown > (kasa3.max_balance * DRAWDOWN_LIMIT): kasa3_active = False
         if kasa4.max_drawdown > (kasa4.max_balance * DRAWDOWN_LIMIT): kasa4_active = False
         
-        # --- Kasa 1: 1.5x, %70 confidence ---
+        # --- Kasa 1: 1.5x, %70 confidence + Regression Safety ---
+        # Strategy: Classifier says Yes (Prob > 0.70) AND Regression says 1.60+ (Safety margin)
         if kasa1_active and p_1_5 >= 0.70:
             bet = 10
             target = 1.5
-            # SLIPPAGE: We require true_val to be at least target + 0.02 to guarantee a win
-            if true_val >= target + 0.02:
-                profit = bet * (target - 1)
+            
+            # Regression Safety Check
+            # If regression model predicts < 1.55, it's too risky even if classifier says Yes.
+            if pred_x >= 1.55:
+                if true_val >= target + 0.02:
+                    profit = bet * (target - 1)
+                else:
+                    profit = -bet
+                kasa1.update(profit)
             else:
-                profit = -bet
-            kasa1.update(profit)
+                kasa1.update(0) # Skip risky bet
         else:
             kasa1.update(0) # No bet
             
-        # --- Kasa 2: 1.5x, %80 confidence ---
+        # --- Kasa 2: 1.5x, %80 confidence (Pure Classifier) ---
         if kasa2_active and p_1_5 >= 0.80:
             bet = 20
             target = 1.5
@@ -127,11 +133,12 @@ def run_simulation(predictions_df, model_name="Model A", max_drawdown_limit=0.3,
         else:
             kasa2.update(0)
             
-        # --- Kasa 3: 3x focus, %60 confidence ---
+        # --- Kasa 3: 3x focus, %60 confidence + Regression Target ---
         if kasa3_active and p_3 >= 0.60:
             bet = 10
             # Target exit: max(1.5, 0.8 * x_pred)
-            target = max(1.5, 0.8 * pred_x)
+            # Use regression to set a realistic target, but cap downside at 1.5
+            target = max(1.5, min(3.0, 0.8 * pred_x)) # Cap at 3.0 safely if pred is crazy high
             
             if true_val >= target + 0.02:
                 profit = bet * (target - 1)
