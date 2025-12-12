@@ -105,3 +105,21 @@ streamlit run app.py
 
 **Geliştirici:** Numan Öndeş  
 **Lisans:** MIT
+
+---
+
+## 🧪 Testler ve Doğrulama
+Bu proje, kod kalitesini ve sistem sağlığını doğrulamak için otomatik test altyapısına sahiptir.
+
+### 1. Birim Testleri (Pytest)
+Veritabanı bağlantısı ve model tahmin fonksiyonlarını test etmek için:
+```bash
+pytest
+```
+
+### 2. Smoke Test (Hızlı Kontrol)
+Sistemin uçtan uca (DB -> Model -> Tahmin) çalışıp çalışmadığını tek komutla görmek için:
+```bash
+python run_smoke_test.py
+```
+*Bu komut, Streamlit arayüzünü açmadan arka planda tüm sistemi kontrol eder.*

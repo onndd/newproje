@@ -241,13 +241,39 @@ if page == "🚀 Canlı Tahmin":
                 
                 # Model A
                 if models.get('model_a'):
-                    probs['A'] = models['model_a']['p15'].predict_proba(feats_df)[0][1]
+                    try:
+                        probs['A'] = models['model_a']['p15'].predict_proba(feats_df)[0][1]
+                    except Exception as e:
+                        st.warning(f"⚠️ Model A Failed: {e}")
+                        probs['A'] = None
                 
                 # Model D
                 if models.get('model_d'):
-                    probs['D'] = models['model_d']['p15'].predict_proba(feats_df)[0][1]
+                    try:
+                        probs['D'] = models['model_d']['p15'].predict_proba(feats_df)[0][1]
+                    except Exception as e:
+                        st.warning(f"⚠️ Model D Failed: {e}")
+                        probs['D'] = None
                 
                 # Model E
+                if models.get('model_e'):
+                    try:
+                        # MLP expects specific features
+                        mlp_cols = models['model_e'].get('cols', [])
+                        if mlp_cols:
+                            # Filter features for MLP
+                            missing_cols = [c for c in mlp_cols if c not in feats_df.columns]
+                            if not missing_cols:
+                                feats_mlp = feats_df[mlp_cols]
+                                # Handle balancing multiplier (though predict doesn't care about balance)
+                                probs['E'] = models['model_e']['p15'].predict_proba(feats_mlp)[0][1]
+                            else:
+                                st.warning(f"⚠️ Model E Features missing: {missing_cols}")
+                        else:
+                             probs['E'] = models['model_e']['p15'].predict_proba(feats_df)[0][1]
+                    except Exception as e:
+                        st.warning(f"⚠️ Model E Failed: {e}")
+                        probs['E'] = None
                 if models.get('model_e'):
                     me_cols = models['model_e']['cols']
                     feats_mlp = feats_df[me_cols]
