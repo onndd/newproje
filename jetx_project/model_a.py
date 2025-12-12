@@ -102,20 +102,46 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     model_p15 = CatBoostClassifier(**params)
     model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))
     
-    # Evaluate
-    preds_p15 = model_p15.predict(X_val)
-    acc_p15 = accuracy_score(y_p15_val, preds_p15)
-    print(f"Validation Accuracy (P1.5): {acc_p15:.4f}")
+    # Detailed Reporting with Dynamic Thresholding
     
-    # Detailed Reporting
-    from sklearn.metrics import confusion_matrix, classification_report
-    cm = confusion_matrix(y_p15_val, preds_p15)
-    print(f"Confusion Matrix (P1.5):\n{cm}")
-    if cm.shape == (2, 2):
-        tn, fp, fn, tp = cm.ravel()
+    def find_best_threshold(y_true, y_prob, model_name):
+        best_thresh = 0.5
+        best_score = -float('inf')
+        
+        # Scan thresholds
+        thresholds = np.arange(0.50, 0.99, 0.01)
+        
+        print(f"\nScanning Thresholds for {model_name}...")
+        for thresh in thresholds:
+            preds = (y_prob > thresh).astype(int)
+            tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
+            
+            # Profit Score (Sniper)
+            score = (tp * PROFIT_SCORING_WEIGHTS['tp']) + \
+                    (fp * PROFIT_SCORING_WEIGHTS['fp']) + \
+                    (tn * PROFIT_SCORING_WEIGHTS['tn']) + \
+                    (fn * PROFIT_SCORING_WEIGHTS['fn'])
+            
+            if score > best_score:
+                best_score = score
+                best_thresh = thresh
+        
+        print(f"Best Threshold for {model_name}: {best_thresh:.2f} (Score: {best_score})")
+        return best_thresh
+
+    # P1.5 Report
+    print("\n--- CatBoost P1.5 Report ---")
+    preds_p15_prob = model_p15.predict_proba(X_val)[:, 1]
+    best_thresh_p15 = find_best_threshold(y_p15_val, preds_p15_prob, "CatBoost P1.5")
+    
+    preds_p15 = (preds_p15_prob > best_thresh_p15).astype(int)
+    cm_p15 = confusion_matrix(y_p15_val, preds_p15)
+    print(f"Confusion Matrix (P1.5 @ {best_thresh_p15:.2f}):\n{cm_p15}")
+    if cm_p15.shape == (2, 2):
+        tn, fp, fn, tp = cm_p15.ravel()
         print(f"Correctly Predicted >1.5x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
         print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
-    print("Classification Report:\n", classification_report(y_p15_val, preds_p15))
+    print(classification_report(y_p15_val, preds_p15))
     
     # Feature Importance Analysis
     print("\nTop 10 Features (P1.5):")
@@ -154,24 +180,25 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
             multiplier = params['cw_multiplier']
             del params['cw_multiplier']
             params['class_weights'] = {0: multiplier, 1: 1.0}
+            params['auto_class_weights'] = None # Fix: Disable auto weights if manual provided
 
     model_p3 = CatBoostClassifier(**params)
     model_p3.fit(X_t, y_p3_t, eval_set=(X_val, y_p3_val))
     
     # Evaluate
-    preds_p3 = model_p3.predict(X_val)
-    acc_p3 = accuracy_score(y_p3_val, preds_p3)
-    print(f"Validation Accuracy (P3.0): {acc_p3:.4f}")
+    # P3.0 Report
+    print("\n--- CatBoost P3.0 Report ---")
+    preds_p3_prob = model_p3.predict_proba(X_val)[:, 1]
+    best_thresh_p3 = find_best_threshold(y_p3_val, preds_p3_prob, "CatBoost P3.0")
     
-    # Detailed Reporting
-    from sklearn.metrics import confusion_matrix, classification_report
-    cm = confusion_matrix(y_p3_val, preds_p3)
-    print(f"Confusion Matrix (P3.0):\n{cm}")
-    if cm.shape == (2, 2):
-        tn, fp, fn, tp = cm.ravel()
+    preds_p3 = (preds_p3_prob > best_thresh_p3).astype(int)
+    cm_p3 = confusion_matrix(y_p3_val, preds_p3)
+    print(f"Confusion Matrix (P3.0 @ {best_thresh_p3:.2f}):\n{cm_p3}")
+    if cm_p3.shape == (2, 2):
+        tn, fp, fn, tp = cm_p3.ravel()
         print(f"Correctly Predicted >3.0x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
         print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
-    print("Classification Report:\n", classification_report(y_p3_val, preds_p3))
+    print(classification_report(y_p3_val, preds_p3))
 
     # 3. Model X (Regressor)
     print("\n--- Training Model A (Regression) ---")

@@ -65,19 +65,56 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
     clf_p3.fit(X_t, y_p3_t, eval_set=[(X_val, y_p3_val)], eval_metric='logloss',
                callbacks=[lgb.early_stopping(100)])
                
-    # Detailed Reporting
-    from sklearn.metrics import confusion_matrix, classification_report
+    # Detailed Reporting with Dynamic Thresholding
+    from sklearn.metrics import confusion_matrix
+    from .config import PROFIT_SCORING_WEIGHTS
     
-    # P1.5 Report (proba + orta eşik)
-    preds_p15_proba = clf_p15.predict_proba(X_val)[:, 1]
-    print("\n--- LightGBM P1.5 Report ---")
-    cm_p15 = confusion_matrix(y_p15_val, (preds_p15_proba >= 0.60).astype(int))
-    print(f"Confusion Matrix (P1.5):\n{cm_p15}")
-    detailed_evaluation(y_p15_val, preds_p15_proba, "P1.5", threshold=0.60)
+    def find_best_threshold(y_true, y_prob, model_name):
+        best_thresh = 0.5
+        best_score = -float('inf')
+        
+        # Scan thresholds
+        thresholds = np.arange(0.50, 0.99, 0.01)
+        
+        print(f"\nScanning Thresholds for {model_name}...")
+        for thresh in thresholds:
+            preds = (y_prob > thresh).astype(int)
+            tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
+            
+            # Profit Score (Sniper)
+            score = (tp * PROFIT_SCORING_WEIGHTS['tp']) + \
+                    (fp * PROFIT_SCORING_WEIGHTS['fp']) + \
+                    (tn * PROFIT_SCORING_WEIGHTS['tn']) + \
+                    (fn * PROFIT_SCORING_WEIGHTS['fn'])
+            
+            if score > best_score:
+                best_score = score
+                best_thresh = thresh
+        
+        print(f"Best Threshold for {model_name}: {best_thresh:.2f} (Score: {best_score})")
+        return best_thresh
 
-    # P3.0 Report (proba + düşük eşik)
+    # P1.5 Report
+    print("\n--- LightGBM P1.5 Report ---")
+    preds_p15_proba = clf_p15.predict_proba(X_val)[:, 1]
+    best_thresh_p15 = find_best_threshold(y_p15_val, preds_p15_proba, "LightGBM P1.5")
+    
+    # Use best threshold for reporting (Not detailed_evaluation call anymore)
+    from sklearn.metrics import classification_report
+    preds_p15 = (preds_p15_proba > best_thresh_p15).astype(int)
+    cm_p15 = confusion_matrix(y_p15_val, preds_p15)
+    print(f"Confusion Matrix (P1.5 @ {best_thresh_p15:.2f}):\n{cm_p15}")
+    detailed_evaluation(y_p15_val, preds_p15_proba, "P1.5", threshold=best_thresh_p15)
+
+    # P3.0 Report
+    print("\n--- LightGBM P3.0 Report ---")
     preds_p3_proba = clf_p3.predict_proba(X_val)[:, 1]
-    detailed_evaluation(y_p3_val, preds_p3_proba, "P3.0", threshold=0.60)
+    best_thresh_p3 = find_best_threshold(y_p3_val, preds_p3_proba, "LightGBM P3.0")
+    
+    preds_p3 = (preds_p3_proba > best_thresh_p3).astype(int)
+    cm_p3 = confusion_matrix(y_p3_val, preds_p3)
+    print(f"Confusion Matrix (P3.0 @ {best_thresh_p3:.2f}):\n{cm_p3}")
+    detailed_evaluation(y_p3_val, preds_p3_proba, "P3.0", threshold=best_thresh_p3)
                
     return clf_p15, clf_p3
 
