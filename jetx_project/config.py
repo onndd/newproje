@@ -111,7 +111,7 @@ PROFIT_SCORING_WEIGHTS = {
 PROFIT_SCORING_WEIGHTS_P3 = {
     'TP': 100,
     'TN': 1,
-    'FP': 125,   # Relaxed Penalty for High Multipliers (3.0x+)
+    'FP': 95,    # Relaxed Penalty for High Multipliers (3.0x+) - Reduced to 95 to encourage risk
     'FN': 50,    # Increased FN Penalty to encourage 'not missing' big wins (optional, keeping 20 is also fine, sticking to plan 125 FP reduction mostly)
     'PRECISION': 100
 }
