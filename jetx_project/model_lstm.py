@@ -201,13 +201,20 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
     
     print(f"LSTM Training Shapes: X_train={X_train.shape}, X_val={X_val.shape}")
     
+    
     # Model P1.5
     print("\n--- Training LSTM (P1.5) ---")
-    model_p15 = build_lstm_model(seq_length)
-    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
-    model_p15.compile(optimizer=optimizer, loss=BinaryFocalLoss(gamma=2.0, alpha=0.25), metrics=['accuracy'])
     
-    callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
+    # Define Metrics
+    metrics = ['accuracy', tf.keras.metrics.Precision(name='precision'), tf.keras.metrics.Recall(name='recall')]
+    
+    # Defaults
+    p15_args = {
+        'units': 128, 'dropout': 0.2, 'dense_units': 64, 
+        'learning_rate': 0.001, 'batch_size': batch_size
+    }
+    
+    if params_p15:
         if 'units1' in params_p15: p15_args['units'] = params_p15['units1']
         if 'dropout1' in params_p15: p15_args['dropout'] = params_p15['dropout1']
         if 'dense_units' in params_p15: p15_args['dense_units'] = params_p15['dense_units']
@@ -215,23 +222,31 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
         if 'batch_size' in params_p15: p15_args['batch_size'] = params_p15['batch_size']
         
     model_p15 = build_lstm_model(seq_length, units=p15_args['units'], dropout=p15_args['dropout'], dense_units=p15_args['dense_units'])
+    optimizer = tf.keras.optimizers.Adam(learning_rate=p15_args['learning_rate'])
+    model_p15.compile(optimizer=optimizer, loss=BinaryFocalLoss(gamma=2.0, alpha=0.25), metrics=metrics)
     
-    opt = tf.keras.optimizers.Adam(learning_rate=p15_args['learning_rate'])
+    callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
+    model_p15.fit(X_train, y_p15_train, validation_data=(X_val, y_p15_val), 
+                  epochs=epochs, batch_size=p15_args['batch_size'], verbose=1, callbacks=callbacks)
+
+    # Detailed Reporting P1.5
+    from sklearn.metrics import confusion_matrix, classification_report
+    preds_p15_prob = model_p15.predict(X_val)
+    # Use helper defined at top
+    best_thresh_p15, _ = find_best_threshold(y_p15_val, preds_p15_prob, "LSTM P1.5")
     
-    # Use Focal Loss for P1.5 to fix "Always No" issue
-    # Alpha 0.6 means we give slightly more weight to Class 1 (if 1 is minority importance) or handle imbalance
-    model_p15.compile(optimizer=opt, loss=BinaryFocalLoss(gamma=2.0, alpha=0.60), metrics=metrics)
+    preds_p15 = (preds_p15_prob >= best_thresh_p15).astype(int)
+    print(f"Confusion Matrix (P1.5):\n{confusion_matrix(y_p15_val, preds_p15)}")
+    print(classification_report(y_p15_val, preds_p15))
+
+    # Model P3.0
+    print("\n--- Training LSTM (P3.0) ---")
     
-    model_p15.fit(X_train, y_p15_train, validation_data=(X_val, y_p15_val),
-                  epochs=epochs, batch_size=p15_args['batch_size'], callbacks=callbacks, verbose=1)
-                  # Removed class_weight because Focal Loss handles it internally via Alpha
-                  
-    # --- P3.0 Model ---
-    print("Training LSTM (P3.0)...")
     p3_args = {
         'units': 128, 'dropout': 0.2, 'dense_units': 64, 
         'learning_rate': 0.001, 'batch_size': batch_size
     }
+    
     if params_p3:
         if 'units1' in params_p3: p3_args['units'] = params_p3['units1']
         if 'dropout1' in params_p3: p3_args['dropout'] = params_p3['dropout1']
@@ -240,64 +255,21 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
         if 'batch_size' in params_p3: p3_args['batch_size'] = params_p3['batch_size']
         
     model_p3 = build_lstm_model(seq_length, units=p3_args['units'], dropout=p3_args['dropout'], dense_units=p3_args['dense_units'])
-    
     opt_3 = tf.keras.optimizers.Adam(learning_rate=p3_args['learning_rate'])
-    # P3 is also imbalanced, Focal Loss helps
-    model_p3.compile(optimizer=opt_3, loss=BinaryFocalLoss(gamma=2.0, alpha=0.70), metrics=metrics)
+    model_p3.compile(optimizer=opt_3, loss=BinaryFocalLoss(gamma=2.0, alpha=0.25), metrics=metrics)
     
-    model_p3.fit(X_train, y_p3_train, validation_data=(X_val, y_p3_val),
-                 epochs=epochs, batch_size=p3_args['batch_size'], callbacks=callbacks, verbose=1)
+    model_p3.fit(X_train, y_p3_train, validation_data=(X_val, y_p3_val), 
+                  epochs=epochs, batch_size=p3_args['batch_size'], verbose=1, callbacks=callbacks)
 
-                 
-    # Detailed Reporting with Dynamic Thresholding
-    from sklearn.metrics import confusion_matrix, classification_report
-    from .config import PROFIT_SCORING_WEIGHTS
-    
-    def find_best_threshold(y_true, y_prob, model_name):
-        best_thresh = 0.5
-        best_score = -float('inf')
-        
-        # Scan thresholds
-        thresholds = np.arange(0.50, 0.99, 0.01)
-        
-        print(f"\nScanning Thresholds for {model_name}...")
-        for thresh in thresholds:
-            preds = (y_prob > thresh).astype(int)
-            tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            
-            # Profit Score (Sniper)
-            score = (tp * PROFIT_SCORING_WEIGHTS['tp']) + \
-                    (fp * PROFIT_SCORING_WEIGHTS['fp']) + \
-                    (tn * PROFIT_SCORING_WEIGHTS['tn']) + \
-                    (fn * PROFIT_SCORING_WEIGHTS['fn'])
-            
-            if score > best_score:
-                best_score = score
-                best_thresh = thresh
-        
-        print(f"Best Threshold for {model_name}: {best_thresh:.2f} (Score: {best_score})")
-        return best_thresh
-
-    # P1.5 Report
-    print("\n--- LSTM P1.5 Report ---")
-    preds_p15_prob = model_p15.predict(X_val)
-    best_thresh_p15 = find_best_threshold(y_p15_val, preds_p15_prob, "LSTM P1.5")
-    
-    preds_p15 = (preds_p15_prob > best_thresh_p15).astype(int)
-    cm_p15 = confusion_matrix(y_p15_val, preds_p15)
-    print(f"Confusion Matrix (P1.5 @ {best_thresh_p15:.2f}):\n{cm_p15}")
-    if cm_p15.shape == (2, 2):
-        tn, fp, fn, tp = cm_p15.ravel()
-        print(f"Correctly Predicted >1.5x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
-        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
-    print(classification_report(y_p15_val, preds_p15))
-
-    # P3.0 Report
-    print("\n--- LSTM P3.0 Report ---")
+    # Detailed Reporting P3.0
     preds_p3_prob = model_p3.predict(X_val)
-    best_thresh_p3 = find_best_threshold(y_p3_val, preds_p3_prob, "LSTM P3.0")
+    best_thresh_p3, _ = find_best_threshold(y_p3_val, preds_p3_prob, "LSTM P3.0")
     
-    preds_p3 = (preds_p3_prob > best_thresh_p3).astype(int)
+    preds_p3 = (preds_p3_prob >= best_thresh_p3).astype(int)
+    print(f"Confusion Matrix (P3.0):\n{confusion_matrix(y_p3_val, preds_p3)}")
+    print(classification_report(y_p3_val, preds_p3))
+    
+    return model_p15, model_p3, scaler
     cm_p3 = confusion_matrix(y_p3_val, preds_p3)
     print(f"Confusion Matrix (P3.0 @ {best_thresh_p3:.2f}):\n{cm_p3}")
     if cm_p3.shape == (2, 2):
