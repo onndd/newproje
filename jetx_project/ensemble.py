@@ -6,7 +6,7 @@ from catboost import CatBoostClassifier
 
 from .model_anomaly import check_anomaly
 
-def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_states, values=None, preds_transformer=None):
+def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_states, values=None, preds_transformer=None, n_samples=None, n_hmm_components=3):
     """
     Combines predictions from all models into a single feature matrix for the meta-learner.
     Includes 'Recent 1.00x Frequency' feature if values are provided.
@@ -18,6 +18,12 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         preds_c: Predictions from Model C (LSTM)
         preds_d: Predictions from Model D (LightGBM)
         preds_e: Predictions from Model E (MLP)
+        hmm_states: Array of HMM states
+        values: (Optional) Raw values for frequency calc
+        preds_transformer: (Optional) Transformer preds
+        n_samples: (Optional) Explicit sample count
+        n_hmm_components: (Optional) Number of HMM states (default 3)
+    """
         hmm_states: HMM States (Categorical)
         values: Raw game values (optional, required for 1.00x frequency feature)
         preds_transformer: Predictions from Transformer (optional)
