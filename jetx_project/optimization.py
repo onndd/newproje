@@ -328,7 +328,7 @@ def optimize_lstm(X, y, n_trials=10, scoring_params=None, timeout=600):
     return study.best_params, study.best_params # Return duplicate to satisfy unpack if needed or just params
     return study.best_params
 
-def optimize_mlp(X, y, n_trials=20, timeout=300):
+def optimize_mlp(X, y, n_trials=20, scoring_params=None, timeout=300):
     """
     Optimizes MLP hyperparameters.
     """
