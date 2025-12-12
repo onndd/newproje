@@ -51,6 +51,24 @@ def main():
     # Data Prep Common
     X_a, y_p15_a, y_p3_a, y_x_a = prepare_model_a_data(values, hmm_states)
     
+    # 2.5 Feature Pruning (Reduce Redundancy)
+    print("\n[2.5/9] Pruning Redundant Features...")
+    # Identify high correlation features
+    corr_matrix = X_a.corr().abs()
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(bool))
+    to_drop = [column for column in upper.columns if any(upper[column] > 0.98)]
+    
+    if to_drop:
+        print(f"Dropping {len(to_drop)} redundant features (Corr > 0.98): {to_drop[:5]}...")
+        X_a = X_a.drop(columns=to_drop)
+        
+        # Save Selected Features List for App usage
+        os.makedirs('models_standalone', exist_ok=True)
+        joblib.dump(X_a.columns.tolist(), 'models_standalone/selected_features.pkl')
+        print(f"Saved selected feature list ({len(X_a.columns)} features) to models_standalone/selected_features.pkl")
+    else:
+        print("No redundant features found.")
+
     # 3. Train Model A (CatBoost) with Optimization
     print("\n[3/9] Optimizing & Training Model A (CatBoost)...")
     # Optimize P1.5
