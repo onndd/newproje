@@ -102,7 +102,7 @@ DB_LIMIT = 50000 # Yeni limit (Yeterli veri için)
 PROFIT_SCORING_WEIGHTS = {
     'TP': 100,
     'TN': 1,
-    'FP': 175,   # Absolute Safety Priority (Death Penalty)
+    'FP': 150,   # Absolute Safety Priority (Death Penalty)
     'FN': 20,    # Minimal FOMO
     'PRECISION': 100
 }
