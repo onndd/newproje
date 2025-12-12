@@ -24,9 +24,6 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         n_samples: (Optional) Explicit sample count
         n_hmm_components: (Optional) Number of HMM states (default 3)
     """
-        hmm_states: HMM States (Categorical)
-        values: Raw game values (optional, required for 1.00x frequency feature)
-        preds_transformer: Predictions from Transformer (optional)
         
     Returns:
         meta_features: Numpy array of shape (n_samples, n_features)

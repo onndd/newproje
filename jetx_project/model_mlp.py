@@ -77,6 +77,19 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
             target_multiplier = params['os_ratio']
             del params['os_ratio'] # Explicit delete
             
+        # Construct hidden_layer_sizes if n_layers is present
+        if 'n_layers' in params:
+            n_layers = params['n_layers']
+            del params['n_layers']
+            layers = []
+            for i in range(n_layers):
+                key = f'n_units_l{i}'
+                if key in params:
+                    layers.append(params[key])
+                    del params[key]
+            if layers:
+                params['hidden_layer_sizes'] = tuple(layers)
+            
     # Apply balancing with potentially updated multiplier
     X_t_p15, y_p15_t_balanced = balance_data(X_t, y_p15_t, target_class=0, multiplier=target_multiplier)
 
@@ -104,6 +117,19 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
         if 'os_ratio' in params_3:
             target_multiplier_p3 = params_3['os_ratio']
             del params_3['os_ratio']
+
+        # Construct hidden_layer_sizes for P3
+        if 'n_layers' in params_3:
+            n_layers = params_3['n_layers']
+            del params_3['n_layers']
+            layers = []
+            for i in range(n_layers):
+                key = f'n_units_l{i}'
+                if key in params_3:
+                    layers.append(params_3[key])
+                    del params_3[key]
+            if layers:
+                params_3['hidden_layer_sizes'] = tuple(layers)
 
     X_t_p3, y_p3_t_balanced = balance_data(X_t, y_p3_t, target_class=1, multiplier=target_multiplier_p3) # Target class 1 for P3 usually (wins)
 
