@@ -225,7 +225,7 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
 
     
     # Detailed Reporting with Dynamic Thresholding
-    from sklearn.metrics import confusion_matrix, classification_report
+    from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
     
     # P1.5 Report
     print("\n--- MLP P1.5 Report ---")

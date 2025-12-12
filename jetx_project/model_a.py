@@ -57,7 +57,7 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     Uses 15% of the training data for validation to prevent overfitting.
     """
     from sklearn.model_selection import train_test_split
-    from sklearn.metrics import accuracy_score, roc_auc_score, mean_squared_error, confusion_matrix
+    from sklearn.metrics import accuracy_score, roc_auc_score, mean_squared_error, confusion_matrix, classification_report
 
     # Split internal validation set (last 15% of training data to respect time order)
     split_idx = int(len(X_train) * 0.85)

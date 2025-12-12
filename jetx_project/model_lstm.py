@@ -7,6 +7,7 @@ from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping
 from sklearn.preprocessing import MinMaxScaler
 import joblib
+from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
 def create_sequences(input_values, target_values, seq_length=200):
     """
