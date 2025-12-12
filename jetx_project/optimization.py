@@ -49,9 +49,9 @@ def find_best_threshold_trial(y_true, y_prob):
         preds = (y_prob > thresh).astype(int)
         tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
         
-        score = (tp * PROFIT_SCORING_WEIGHTS['TP']) + \
+        score = (tp * PROFIT_SCORING_WEIGHTS['TP']) - \
                 (fp * PROFIT_SCORING_WEIGHTS['FP']) + \
-                (tn * PROFIT_SCORING_WEIGHTS['TN']) + \
+                (tn * PROFIT_SCORING_WEIGHTS['TN']) - \
                 (fn * PROFIT_SCORING_WEIGHTS['FN'])
         
         if score > best_score:
