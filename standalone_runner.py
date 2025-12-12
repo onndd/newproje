@@ -101,8 +101,8 @@ def main():
     
     # 7. Train Model E (MLP) with Optimization
     print("\n[7/9] Optimizing & Training Model E (MLP)...")
-    bp_mlp_p15 = optimize_mlp(X_a, y_p15_a, n_trials=10)
-    bp_mlp_p3 = optimize_mlp(X_a, y_p3_a, n_trials=10)
+    bp_mlp_p15 = optimize_mlp(X_a, y_p15_a, n_trials=30)
+    bp_mlp_p3 = optimize_mlp(X_a, y_p3_a, n_trials=30)
     
     me_p15, me_p3, me_cols = train_model_mlp(X_a, y_p15_a, y_p3_a, params_p15=bp_mlp_p15, params_p3=bp_mlp_p3)
     save_mlp_models(me_p15, me_p3, me_cols, output_dir='models_standalone')
