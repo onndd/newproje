@@ -23,7 +23,6 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         preds_transformer: (Optional) Transformer preds
         n_samples: (Optional) Explicit sample count
         n_hmm_components: (Optional) Number of HMM states (default 3)
-    """
         
     Returns:
         meta_features: Numpy array of shape (n_samples, n_features)
