@@ -97,6 +97,7 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
             multiplier = params['cw_multiplier']
             del params['cw_multiplier'] # Explicitly remove it
             params['class_weights'] = {0: multiplier, 1: 1.0}
+            params['auto_class_weights'] = None # Fix: Disable auto weights if manual provided
 
     model_p15 = CatBoostClassifier(**params)
     model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))
