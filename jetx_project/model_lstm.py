@@ -68,61 +68,146 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
     """
     Trains LSTM models for P1.5 and P3 with NO DATA LEAKAGE.
     """
+    
+    # Define Helper for Threshold Search
+    from sklearn.metrics import confusion_matrix, classification_report
+    from .config import PROFIT_SCORING_WEIGHTS
+    def find_best_threshold(y_true, y_prob, model_name, verbose=True):
+        best_thresh = 0.5
+        best_score = -float('inf')
+        thresholds = np.arange(0.50, 0.99, 0.01)
+        
+        if verbose:
+            print(f"\nScanning Thresholds for {model_name}...")
+            
+        for thresh in thresholds:
+            preds = (y_prob > thresh).astype(int)
+            tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
+            score = (tp * PROFIT_SCORING_WEIGHTS['tp']) + \
+                    (fp * PROFIT_SCORING_WEIGHTS['fp']) + \
+                    (tn * PROFIT_SCORING_WEIGHTS['tn']) + \
+                    (fn * PROFIT_SCORING_WEIGHTS['fn'])
+            
+            if score > best_score:
+                best_score = score
+                best_thresh = thresh
+        
+        if verbose:
+            print(f"Best Threshold for {model_name}: {best_thresh:.2f} (Score: {best_score})")
+        return best_thresh, best_score
+
     # 1. Strict Chronological Split (Raw Data)
     n_total = len(values)
-    train_end = int(n_total * 0.70)
-    val_start = int(n_total * 0.75)
-    val_end = int(n_total * 0.85)
+    # Use standard 85/15 for final model
+    final_split = int(n_total * 0.85)
     
+    # --- ROLLING WINDOW CV ---
+    print("\n[CV] Running 3-Fold Rolling Window CV for LSTM (Strict Scaler Isolation)...")
+    from sklearn.model_selection import TimeSeriesSplit
+    tscv = TimeSeriesSplit(n_splits=3)
+    cv_scores_p15 = []
+    cv_scores_p3 = []
+    
+    # We must use values directly
+    for fold, (train_idx, val_idx) in enumerate(tscv.split(values)):
+        # Data Slicing
+        raw_train = values[train_idx]
+        
+        # Validation needs context (past sequences)
+        val_start = val_idx[0]
+        context_start = max(0, val_start - seq_length)
+        raw_val_expanded = values[context_start : val_idx[-1] + 1]
+        
+        # SCALER ISOLATION: Fit only on Train
+        scaler_cv = MinMaxScaler(feature_range=(0, 1))
+        train_log = np.log1p(raw_train)
+        val_log_expanded = np.log1p(raw_val_expanded)
+        
+        scaler_cv.fit(train_log.reshape(-1, 1))
+        
+        train_scaled = scaler_cv.transform(train_log.reshape(-1, 1))
+        val_scaled_expanded = scaler_cv.transform(val_log_expanded.reshape(-1, 1))
+        
+        # Sequence Generation
+        X_t_cv, y_p15_t_cv, y_p3_t_cv, _ = create_sequences(train_scaled, raw_train, seq_length)
+        X_v_cv, y_p15_v_cv, y_p3_v_cv, _ = create_sequences(val_scaled_expanded, raw_val_expanded, seq_length)
+        
+        if len(X_t_cv) < batch_size or len(X_v_cv) == 0:
+            print(f"  Fold {fold+1}: Not enough data. Skipping.")
+            continue
+            
+        X_t_cv = X_t_cv.reshape((X_t_cv.shape[0], X_t_cv.shape[1], 1))
+        X_v_cv = X_v_cv.reshape((X_v_cv.shape[0], X_v_cv.shape[1], 1))
+        
+        # Setup Model (P1.5 Training)
+        model_cv = build_lstm_model(seq_length)
+        opt = tf.keras.optimizers.Adam(learning_rate=0.001)
+        model_cv.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
+        
+        model_cv.fit(X_t_cv, y_p15_t_cv, validation_data=(X_v_cv, y_p15_v_cv), 
+                     epochs=5, batch_size=batch_size, verbose=0, # Fast CV
+                     callbacks=[EarlyStopping(monitor='val_loss', patience=2)])
+        
+        probs = model_cv.predict(X_v_cv, verbose=0)
+        _, score_p15 = find_best_threshold(y_p15_v_cv, probs, f"P1.5 Fold {fold+1}", verbose=False)
+        cv_scores_p15.append(score_p15)
+        
+        # P3.0 Training (Optional or separate loop? Do both)
+        # Re-use X, just change Y
+        model_cv_p3 = build_lstm_model(seq_length)
+        model_cv_p3.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
+        model_cv_p3.fit(X_t_cv, y_p3_t_cv, validation_data=(X_v_cv, y_p3_v_cv),
+                       epochs=5, batch_size=batch_size, verbose=0,
+                       callbacks=[EarlyStopping(monitor='val_loss', patience=2)])
+        probs_p3 = model_cv_p3.predict(X_v_cv, verbose=0)
+        _, score_p3 = find_best_threshold(y_p3_v_cv, probs_p3, f"P3.0 Fold {fold+1}", verbose=False)
+        cv_scores_p3.append(score_p3)
+        
+        print(f"  Fold {fold+1} Scores -> P1.5: {score_p15:.2f}, P3.0: {score_p3:.2f}")
+
+    print(f"[CV] Avg P1.5: {np.mean(cv_scores_p15):.2f}, Avg P3.0: {np.mean(cv_scores_p3):.2f}")
+    # --------------------------------
+
+    # Final Training (Full Data - 85/15)
+    train_end = int(n_total * 0.85)
     raw_train = values[:train_end]
-    raw_val = values[val_start:val_end]
+    raw_val = values[train_end:] # Note: We need context for val!
     
-    print(f"LSTM Split: Train ({len(raw_train)}), Val ({len(raw_val)})")
+    print(f"Final LSTM Split: Train ({len(raw_train)}), Val ({len(raw_val)})")
+    
+    # Needs expanded val for creating X_val
+    val_context = values[train_end - seq_length : ] 
+    # Use context so X_val[0] matches target values[train_end]
     
     # 2. Fit Scaler ONLY on Training Data
     # Log Transform first
     train_log = np.log1p(raw_train)
-    val_log = np.log1p(raw_val)
+    val_log_expanded = np.log1p(val_context)
     
     scaler = MinMaxScaler(feature_range=(0, 1))
     scaler.fit(train_log.reshape(-1, 1))
     
     train_scaled = scaler.transform(train_log.reshape(-1, 1))
-    val_scaled = scaler.transform(val_log.reshape(-1, 1))
+    val_scaled = scaler.transform(val_log_expanded.reshape(-1, 1))
     
     # 3. Create Sequences Separately
     # Pass SCALED for X, and RAW for y
     X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, raw_train, seq_length)
-    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, raw_val, seq_length)
+    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, val_context, seq_length)
     
     # Reshape for LSTM
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
     X_val = X_val.reshape((X_val.shape[0], X_val.shape[1], 1))
     
-    print(f"LSTM Sequences: Train ({len(X_train)}), Val ({len(X_val)})")
+    print(f"LSTM Training Shapes: X_train={X_train.shape}, X_val={X_val.shape}")
+    
+    # Model P1.5
+    print("\n--- Training LSTM (P1.5) ---")
+    model_p15 = build_lstm_model(seq_length)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.001)
+    model_p15.compile(optimizer=optimizer, loss=BinaryFocalLoss(gamma=2.0, alpha=0.25), metrics=['accuracy'])
     
     callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
-    
-    # Define Metrics
-    metrics = ['accuracy', tf.keras.metrics.Precision(name='precision'), tf.keras.metrics.Recall(name='recall')]
-    
-    # --- P1.5 Model ---
-    print("Training LSTM (P1.5)...")
-    
-    # Defaults
-    p15_args = {
-        'units': 128, 'dropout': 0.2, 'dense_units': 64, 
-        'learning_rate': 0.001, 'batch_size': batch_size
-    }
-    if params_p15:
-        # Clean params if needed
-        clean_params = {k: v for k, v in params_p15.items() if k in ['units1', 'dropout1', 'units2', 'dropout2', 'dense_units', 'lr', 'batch_size']}
-        # Map optuna names to function names if necessary or just update
-        # Our optimization.py uses 'units1', 'units2' etc. but `build_lstm_model` uses simple `units`.
-        # We need to adapt the build function or the args.
-        # Let's adapt args to match what build_lstm_model expects (simple 2-layer) or update build_lstm_model to be flexible.
-        # For simplicity, we'll map 'units1' -> 'units' if present.
-        
         if 'units1' in params_p15: p15_args['units'] = params_p15['units1']
         if 'dropout1' in params_p15: p15_args['dropout'] = params_p15['dropout1']
         if 'dense_units' in params_p15: p15_args['dense_units'] = params_p15['dense_units']
