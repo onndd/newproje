@@ -64,59 +64,19 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     
     X_t, X_val = X_train.iloc[:split_idx], X_train.iloc[split_idx:]
     
-    # 1. Model P1.5 (Classifier)
-    print("\n--- Training Model A (P1.5) ---")
-    y_p15_t, y_p15_val = y_p15_train[:split_idx], y_p15_train[split_idx:]
-    
-    # Optimized parameters (Manual tuning to prevent overfitting)
-    # Default params
-    params = {
-        'iterations': 2000,
-        'learning_rate': 0.005, # Slower learning
-        'depth': 6, # Reduced from 10 to 6
-        'l2_leaf_reg': 9, # Increased regularization
-        'loss_function': 'Logloss',
-        'eval_metric': 'AUC',
-        'random_seed': 42,
-        'verbose': 100,
-        'early_stopping_rounds': 300,
-        # Sınıf 0 ağırlığını artırdık çünkü model "her şeye giriyor". 
-        # Negatifleri (0) daha ciddiye alması lazım.
-        'class_weights': {0: 2.0, 1: 1.0},
-    }
-    
-    # Override if params_p15 provided (from Optuna)
-    # Override if params_p15 provided (from Optuna)
-    if params_p15:
-        print(f"Using optimized parameters for P1.5: {params_p15}")
-        # Create a COPY to prevent modifying the original dict reference
-        params.update(params_p15.copy())
-        
-        # Handle 'cw_multiplier' if present (it's a custom param, not for CatBoost init)
-        if 'cw_multiplier' in params:
-            multiplier = params['cw_multiplier']
-            del params['cw_multiplier'] # Explicitly remove it
-            params['class_weights'] = {0: multiplier, 1: 1.0}
-            params['auto_class_weights'] = None # Fix: Disable auto weights if manual provided
-
-    model_p15 = CatBoostClassifier(**params)
-    model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))
-    
-    # Detailed Reporting with Dynamic Thresholding
-    
-    def find_best_threshold(y_true, y_prob, model_name):
+    # Define Helper for Threshold Search
+    from .config import PROFIT_SCORING_WEIGHTS
+    def find_best_threshold(y_true, y_prob, model_name, verbose=True):
         best_thresh = 0.5
         best_score = -float('inf')
-        
-        # Scan thresholds
         thresholds = np.arange(0.50, 0.99, 0.01)
         
-        print(f"\nScanning Thresholds for {model_name}...")
+        if verbose:
+            print(f"\nScanning Thresholds for {model_name}...")
+            
         for thresh in thresholds:
             preds = (y_prob > thresh).astype(int)
             tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            
-            # Profit Score (Sniper)
             score = (tp * PROFIT_SCORING_WEIGHTS['tp']) + \
                     (fp * PROFIT_SCORING_WEIGHTS['fp']) + \
                     (tn * PROFIT_SCORING_WEIGHTS['tn']) + \
@@ -126,13 +86,68 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
                 best_score = score
                 best_thresh = thresh
         
-        print(f"Best Threshold for {model_name}: {best_thresh:.2f} (Score: {best_score})")
-        return best_thresh
+        if verbose:
+            print(f"Best Threshold for {model_name}: {best_thresh:.2f} (Score: {best_score})")
+        return best_thresh, best_score
 
-    # P1.5 Report
+    # -----------------------------------------------------
+    # 1. Model P1.5 (Classifier)
+    # -----------------------------------------------------
+    print("\n--- Training Model A (P1.5) ---")
+    y_p15_t, y_p15_val = y_p15_train[:split_idx], y_p15_train[split_idx:]
+    
+    # Defaults
+    params = {
+        'iterations': 2000,
+        'learning_rate': 0.005,
+        'depth': 6,
+        'l2_leaf_reg': 9,
+        'loss_function': 'Logloss',
+        'eval_metric': 'AUC',
+        'random_seed': 42,
+        'verbose': 0, # Silent for CV
+        'early_stopping_rounds': 300,
+        'class_weights': {0: 2.0, 1: 1.0},
+    }
+    
+    if params_p15:
+        print(f"Using optimized parameters for P1.5: {params_p15}")
+        params.update(params_p15.copy())
+        if 'cw_multiplier' in params:
+            multiplier = params['cw_multiplier']
+            del params['cw_multiplier']
+            params['class_weights'] = {0: multiplier, 1: 1.0}
+            params['auto_class_weights'] = None
+
+    # --- ROLLING WINDOW CV (P1.5) ---
+    print("\n[CV] Running 3-Fold Rolling Window CV for P1.5...")
+    from sklearn.model_selection import TimeSeriesSplit
+    tscv = TimeSeriesSplit(n_splits=3)
+    cv_scores = []
+    
+    for fold, (train_idx, val_idx) in enumerate(tscv.split(X_train)):
+        cv_X_train, cv_X_val = X_train.iloc[train_idx], X_train.iloc[val_idx]
+        cv_y_train, cv_y_val = y_p15_train[train_idx], y_p15_train[val_idx]
+        
+        cv_model = CatBoostClassifier(**params)
+        cv_model.fit(cv_X_train, cv_y_train, eval_set=(cv_X_val, cv_y_val), early_stopping_rounds=100, verbose=0)
+        
+        probs = cv_model.predict_proba(cv_X_val)[:, 1]
+        _, score = find_best_threshold(cv_y_val, probs, f"P1.5 Fold {fold+1}", verbose=False)
+        cv_scores.append(score)
+        print(f"  Fold {fold+1} Profit Score: {score:.2f}")
+        
+    print(f"[CV] Average P1.5 Score: {np.mean(cv_scores):.2f}")
+    # --------------------------------
+
+    params['verbose'] = 100 # Restore verbose for final training
+    model_p15 = CatBoostClassifier(**params)
+    model_p15.fit(X_t, y_p15_t, eval_set=(X_val, y_p15_val))
+    
+    # Detailed Reporting with Dynamic Thresholding
     print("\n--- CatBoost P1.5 Report ---")
     preds_p15_prob = model_p15.predict_proba(X_val)[:, 1]
-    best_thresh_p15 = find_best_threshold(y_p15_val, preds_p15_prob, "CatBoost P1.5")
+    best_thresh_p15, _ = find_best_threshold(y_p15_val, preds_p15_prob, "CatBoost P1.5")
     
     preds_p15 = (preds_p15_prob > best_thresh_p15).astype(int)
     cm_p15 = confusion_matrix(y_p15_val, preds_p15)
@@ -152,36 +167,54 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
         idx = sorted_idx[i]
         print(f"{feature_names[idx]}: {feature_importance[idx]:.4f}")
 
-    # 2. Model P3 (Classifier)
+    # -----------------------------------------------------
+    # 2. Model P3.0 (Classifier)
+    # -----------------------------------------------------
     print("\n--- Training Model A (P3.0) ---")
     y_p3_t, y_p3_val = y_p3_train[:split_idx], y_p3_train[split_idx:]
-    # Optimized parameters (Manual tuning to prevent overfitting)
-    # Default params
+    
     params = {
         'iterations': 3000, 
         'learning_rate': 0.01, 
         'depth': 8, 
         'l2_leaf_reg': 5, 
         'loss_function': 'Logloss',
-        'eval_metric': 'Precision', # Focus on correctness of positive predictions
-        'auto_class_weights': 'Balanced', # Handle class imbalance
+        'eval_metric': 'Precision', 
+        'auto_class_weights': 'Balanced',
         'random_seed': 42,
-        'verbose': 100,
+        'verbose': 0, # Silent for CV
         'early_stopping_rounds': 200 
     }
     
-    # Override from Optuna
     if params_p3:
         print(f"Using optimized parameters for P3.0: {params_p3}")
         params.update(params_p3.copy())
-        
-        # Handle 'cw_multiplier' for P3
         if 'cw_multiplier' in params:
             multiplier = params['cw_multiplier']
             del params['cw_multiplier']
             params['class_weights'] = {0: multiplier, 1: 1.0}
-            params['auto_class_weights'] = None # Fix: Disable auto weights if manual provided
+            params['auto_class_weights'] = None
 
+    # --- ROLLING WINDOW CV (P3.0) ---
+    print("\n[CV] Running 3-Fold Rolling Window CV for P3.0...")
+    cv_scores_p3 = []
+    
+    for fold, (train_idx, val_idx) in enumerate(tscv.split(X_train)):
+        cv_X_train, cv_X_val = X_train.iloc[train_idx], X_train.iloc[val_idx]
+        cv_y_train, cv_y_val = y_p3_train[train_idx], y_p3_train[val_idx]
+        
+        cv_model = CatBoostClassifier(**params)
+        cv_model.fit(cv_X_train, cv_y_train, eval_set=(cv_X_val, cv_y_val), early_stopping_rounds=100, verbose=0)
+        
+        probs = cv_model.predict_proba(cv_X_val)[:, 1]
+        _, score = find_best_threshold(cv_y_val, probs, f"P3.0 Fold {fold+1}", verbose=False)
+        cv_scores_p3.append(score)
+        print(f"  Fold {fold+1} Profit Score: {score:.2f}")
+        
+    print(f"[CV] Average P3.0 Score: {np.mean(cv_scores_p3):.2f}")
+    # --------------------------------
+
+    params['verbose'] = 100
     model_p3 = CatBoostClassifier(**params)
     model_p3.fit(X_t, y_p3_t, eval_set=(X_val, y_p3_val))
     
@@ -189,7 +222,7 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     # P3.0 Report
     print("\n--- CatBoost P3.0 Report ---")
     preds_p3_prob = model_p3.predict_proba(X_val)[:, 1]
-    best_thresh_p3 = find_best_threshold(y_p3_val, preds_p3_prob, "CatBoost P3.0")
+    best_thresh_p3, _ = find_best_threshold(y_p3_val, preds_p3_prob, "CatBoost P3.0")
     
     preds_p3 = (preds_p3_prob > best_thresh_p3).astype(int)
     cm_p3 = confusion_matrix(y_p3_val, preds_p3)
