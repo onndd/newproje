@@ -57,7 +57,7 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     Uses 15% of the training data for validation to prevent overfitting.
     """
     from sklearn.model_selection import train_test_split
-    from sklearn.metrics import accuracy_score, roc_auc_score, mean_squared_error
+    from sklearn.metrics import accuracy_score, roc_auc_score, mean_squared_error, confusion_matrix
 
     # Split internal validation set (last 15% of training data to respect time order)
     split_idx = int(len(X_train) * 0.85)
@@ -77,10 +77,10 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
         for thresh in thresholds:
             preds = (y_prob > thresh).astype(int)
             tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            score = (tp * PROFIT_SCORING_WEIGHTS['tp']) + \
-                    (fp * PROFIT_SCORING_WEIGHTS['fp']) + \
-                    (tn * PROFIT_SCORING_WEIGHTS['tn']) + \
-                    (fn * PROFIT_SCORING_WEIGHTS['fn'])
+            score = (tp * PROFIT_SCORING_WEIGHTS['TP']) + \
+                    (fp * PROFIT_SCORING_WEIGHTS['FP']) + \
+                    (tn * PROFIT_SCORING_WEIGHTS['TN']) + \
+                    (fn * PROFIT_SCORING_WEIGHTS['FN'])
             
             if score > best_score:
                 best_score = score

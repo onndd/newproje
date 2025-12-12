@@ -83,10 +83,10 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
         for thresh in thresholds:
             preds = (y_prob > thresh).astype(int)
             tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            score = (tp * PROFIT_SCORING_WEIGHTS['tp']) + \
-                    (fp * PROFIT_SCORING_WEIGHTS['fp']) + \
-                    (tn * PROFIT_SCORING_WEIGHTS['tn']) + \
-                    (fn * PROFIT_SCORING_WEIGHTS['fn'])
+            score = (tp * PROFIT_SCORING_WEIGHTS['TP']) + \
+                    (fp * PROFIT_SCORING_WEIGHTS['FP']) + \
+                    (tn * PROFIT_SCORING_WEIGHTS['TN']) + \
+                    (fn * PROFIT_SCORING_WEIGHTS['FN'])
             
             if score > best_score:
                 best_score = score

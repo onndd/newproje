@@ -2,7 +2,7 @@
 import lightgbm as lgb
 import numpy as np
 import os
-from sklearn.metrics import accuracy_score
+from sklearn.metrics import accuracy_score, confusion_matrix
 from .evaluation import detailed_evaluation
 
 def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3=None):
@@ -29,10 +29,10 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
         for thresh in thresholds:
             preds = (y_prob > thresh).astype(int)
             tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            score = (tp * PROFIT_SCORING_WEIGHTS['tp']) + \
-                    (fp * PROFIT_SCORING_WEIGHTS['fp']) + \
-                    (tn * PROFIT_SCORING_WEIGHTS['tn']) + \
-                    (fn * PROFIT_SCORING_WEIGHTS['fn'])
+            score = (tp * PROFIT_SCORING_WEIGHTS['TP']) + \
+                    (fp * PROFIT_SCORING_WEIGHTS['FP']) + \
+                    (tn * PROFIT_SCORING_WEIGHTS['TN']) + \
+                    (fn * PROFIT_SCORING_WEIGHTS['FN'])
             
             if score > best_score:
                 best_score = score
