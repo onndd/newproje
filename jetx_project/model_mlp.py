@@ -25,7 +25,7 @@ def balance_data(X, y, target_class, multiplier=2.0):
     perm = np.random.permutation(len(X_balanced))
     return X_balanced.iloc[perm], y_balanced[perm]
 
-def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3=None):
+def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3=None, scoring_params_p15=None, scoring_params_p3=None):
     """
     Trains MLP models.
     """
@@ -58,10 +58,10 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
         for thresh in thresholds:
             preds = (y_prob > thresh).astype(int)
             tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            score = (tp * PROFIT_SCORING_WEIGHTS['TP']) - \
-                    (fp * PROFIT_SCORING_WEIGHTS['FP']) + \
-                    (tn * PROFIT_SCORING_WEIGHTS['TN']) - \
-                    (fn * PROFIT_SCORING_WEIGHTS['FN'])
+            score = (tp * scoring_params['TP']) - \
+                    (fp * scoring_params['FP']) + \
+                    (tn * scoring_params['TN']) - \
+                    (fn * scoring_params['FN'])
             
             if score > best_score:
                 best_score = score
@@ -230,7 +230,7 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     # P1.5 Report
     print("\n--- MLP P1.5 Report ---")
     preds_p15_prob = clf_p15.predict_proba(X_val)[:, 1]
-    best_thresh_p15, _ = find_best_threshold(y_p15_val, preds_p15_prob, "MLP P1.5")
+    best_thresh_p15, _ = find_best_threshold(y_p15_val, preds_p15_prob, "MLP P1.5", scoring_params=scoring_params)
     
     preds_p15 = (preds_p15_prob > best_thresh_p15).astype(int)
     cm_p15 = confusion_matrix(y_p15_val, preds_p15)

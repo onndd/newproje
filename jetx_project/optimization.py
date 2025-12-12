@@ -32,35 +32,55 @@ def calculate_profit_score(y_true, y_pred):
     score = (tp * 100) + (tn * 1) - (fp * 500) - (fn * 20) + (precision * 100)
     return score
 
-def find_best_threshold_trial(y_true, y_prob):
+def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
     """
-    Helper to find best threshold within a trial.
-    Uses centralized PROFIT_SCORING_WEIGHTS for consistency.
+    Finds the optimal threshold based on Profit Scoring.
     """
-    from .config import PROFIT_SCORING_WEIGHTS
+    if scoring_params is None:
+        from .config import PROFIT_SCORING_WEIGHTS
+        scoring_params = PROFIT_SCORING_WEIGHTS
+        
     best_thresh = 0.5
     best_score = -float('inf')
     
     # Coarse scan for speed during optimization (0.50 to 0.95 step 0.05)
     # Fine-tuning happens in final training
-    thresholds = np.arange(0.50, 0.96, 0.05)
+    thresholds = np.arange(0.05, 1.0, 0.05)
     
     for thresh in thresholds:
         preds = (y_prob > thresh).astype(int)
-        tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
         
-        score = (tp * PROFIT_SCORING_WEIGHTS['TP']) - \
-                (fp * PROFIT_SCORING_WEIGHTS['FP']) + \
-                (tn * PROFIT_SCORING_WEIGHTS['TN']) - \
-                (fn * PROFIT_SCORING_WEIGHTS['FN'])
+        # Handle cases where confusion_matrix might not be 2x2 (e.g., all predictions are same)
+        try:
+            tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
+        except ValueError:
+            # If only one class is present in predictions, adjust
+            if len(np.unique(preds)) == 1:
+                if preds[0] == 0: # All predicted 0
+                    tn = np.sum(y_true == 0)
+                    fp = 0
+                    fn = np.sum(y_true == 1)
+                    tp = 0
+                else: # All predicted 1
+                    tn = 0
+                    fp = np.sum(y_true == 0)
+                    fn = 0
+                    tp = np.sum(y_true == 1)
+            else: # Should not happen if y_true has both classes
+                continue # Skip this threshold if confusion matrix is weird
+        
+        score = (tp * scoring_params['TP']) - \
+                (fp * scoring_params['FP']) + \
+                (tn * scoring_params['TN']) - \
+                (fn * scoring_params['FN'])
         
         if score > best_score:
             best_score = score
             best_thresh = thresh
             
-    return best_score
+    return best_thresh, best_score
 
-def optimize_catboost(X, y, n_trials=20, timeout=600):
+def optimize_catboost(X, y, n_trials=20, scoring_params=None, timeout=600):
     """
     Optimizes CatBoost hyperparameters using Optuna with GPU support.
     """
@@ -95,8 +115,8 @@ def optimize_catboost(X, y, n_trials=20, timeout=600):
             model.fit(X_train, y_train, eval_set=[(X_val, y_val)], early_stopping_rounds=50)
             
             preds_proba = model.predict_proba(X_val)[:, 1]
-            # Use Dynamic Thresholding for objective value
-            best_score = find_best_threshold_trial(y_val, preds_proba)
+            # Custom Profit Metric
+            best_thresh, best_score = find_best_threshold(y_val, preds_proba, "CatBoost_Opt", verbose=False, scoring_params=scoring_params)
             return best_score
                 
         except Exception as e:
@@ -109,7 +129,7 @@ def optimize_catboost(X, y, n_trials=20, timeout=600):
     print(f"Best CatBoost params: {study.best_params}")
     return study.best_params
 
-def optimize_lightgbm(X, y, n_trials=20, timeout=600):
+def optimize_lightgbm(X, y, n_trials=20, scoring_params=None, timeout=600):
     """
     Optimizes LightGBM hyperparameters using Optuna.
     """
@@ -146,7 +166,7 @@ def optimize_lightgbm(X, y, n_trials=20, timeout=600):
             model.fit(X_train, y_train, eval_set=[(X_val, y_val)], eval_metric='logloss', callbacks=[lgb.early_stopping(100, verbose=False)])
             
             preds_proba = model.predict_proba(X_val)[:, 1]
-            best_score = find_best_threshold_trial(y_val, preds_proba)
+            best_thresh, best_score = find_best_threshold(y_val, preds_proba, "LightGBM_Opt", verbose=False, scoring_params=scoring_params)
             return best_score
             
         except Exception as e:
@@ -158,7 +178,7 @@ def optimize_lightgbm(X, y, n_trials=20, timeout=600):
     print(f"Best LightGBM params: {study.best_params}")
     return study.best_params
 
-def optimize_mlp(X, y, n_trials=20, timeout=600):
+def optimize_mlp(X, y, n_trials=20, scoring_params=None, timeout=600):
     """
     Optimizes MLP hyperparameters using Optuna.
     Includes 'os_ratio' for minority class oversampling tuning.
@@ -202,7 +222,7 @@ def optimize_mlp(X, y, n_trials=20, timeout=600):
             clf.fit(X_t_balanced, y_t_balanced)
             
             preds_proba = clf.predict_proba(X_val)[:, 1]
-            best_score = find_best_threshold_trial(y_val, preds_proba)
+            best_thresh, best_score = find_best_threshold(y_val, preds_proba, "MLP_Opt", verbose=False, scoring_params=scoring_params)
             return best_score
         except Exception:
             return -1000.0
@@ -213,7 +233,7 @@ def optimize_mlp(X, y, n_trials=20, timeout=600):
     print(f"Best MLP params: {study.best_params}")
     return study.best_params
 
-def optimize_lstm(X, y, n_trials=10, timeout=600):
+def optimize_lstm(X, y, n_trials=10, scoring_params=None, timeout=600):
     """
     Optimizes LSTM hyperparameters using Optuna (Values-based).
     """
@@ -294,7 +314,7 @@ def optimize_lstm(X, y, n_trials=10, timeout=600):
                       callbacks=[early_stop], verbose=0)
             
             preds_proba = model.predict(X_v, verbose=0)
-            best_score = find_best_threshold_trial(y_v, preds_proba)
+            best_thresh, best_score = find_best_threshold(y_v, preds_proba, "LSTM_Opt", verbose=False, scoring_params=scoring_params)
             return best_score
             
         except Exception as e:
@@ -353,7 +373,7 @@ def optimize_mlp(X, y, n_trials=20, timeout=300):
     print(f"Best MLP params: {study.best_params}")
     return study.best_params
 
-def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=15, timeout=600):
+def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=15, scoring_params=None, timeout=600):
     """
     Optimizes LSTM hyperparameters.
     Supports TWO signatures for backward compatibility:

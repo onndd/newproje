@@ -51,7 +51,7 @@ def prepare_model_a_data(values, hmm_states, start_index=500):
     
     return X, y_p15, y_p3, y_x
 
-def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, params_p3=None, params_x=None):
+def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, params_p3=None, params_x=None, scoring_params_p15=None, scoring_params_p3=None):
     """
     Trains the 3 CatBoost models with validation and metric reporting.
     Uses 15% of the training data for validation to prevent overfitting.
@@ -66,7 +66,13 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     
     # Define Helper for Threshold Search
     from .config import PROFIT_SCORING_WEIGHTS
-    def find_best_threshold(y_true, y_prob, model_name, verbose=True):
+    def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
+        """
+        Finds the optimal threshold based on Profit Scoring.
+        """
+        if scoring_params is None:
+            scoring_params = PROFIT_SCORING_WEIGHTS
+            
         best_thresh = 0.5
         best_score = -float('inf')
         thresholds = np.arange(0.50, 0.99, 0.01)
@@ -77,10 +83,10 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
         for thresh in thresholds:
             preds = (y_prob > thresh).astype(int)
             tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            score = (tp * PROFIT_SCORING_WEIGHTS['TP']) - \
-                    (fp * PROFIT_SCORING_WEIGHTS['FP']) + \
-                    (tn * PROFIT_SCORING_WEIGHTS['TN']) - \
-                    (fn * PROFIT_SCORING_WEIGHTS['FN'])
+            score = (tp * scoring_params['TP']) - \
+                    (fp * scoring_params['FP']) + \
+                    (tn * scoring_params['TN']) - \
+                    (fn * scoring_params['FN'])
             
             if score > best_score:
                 best_score = score
@@ -133,7 +139,7 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
         cv_model.fit(cv_X_train, cv_y_train, eval_set=(cv_X_val, cv_y_val), early_stopping_rounds=100, verbose=0)
         
         probs = cv_model.predict_proba(cv_X_val)[:, 1]
-        _, score = find_best_threshold(cv_y_val, probs, f"P1.5 Fold {fold+1}", verbose=False)
+        _, score = find_best_threshold(cv_y_val, probs, f"P1.5 Fold {fold+1}", verbose=False, scoring_params=scoring_params_p15)
         cv_scores.append(score)
         print(f"  Fold {fold+1} Profit Score: {score:.2f}")
         
@@ -147,7 +153,8 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     # Detailed Reporting with Dynamic Thresholding
     print("\n--- CatBoost P1.5 Report ---")
     preds_p15_prob = model_p15.predict_proba(X_val)[:, 1]
-    best_thresh_p15, _ = find_best_threshold(y_p15_val, preds_p15_prob, "CatBoost P1.5")
+    best_thresh_p15, best_score_p15 = find_best_threshold(y_p15_val, preds_p15_prob, "CatBoost P1.5", scoring_params=scoring_params_p15)
+    print(f"Best Threshold for CatBoost P1.5: {best_thresh_p15:.2f} (Score: {best_score_p15:.2f})")
     
     preds_p15 = (preds_p15_prob > best_thresh_p15).astype(int)
     cm_p15 = confusion_matrix(y_p15_val, preds_p15)
@@ -207,7 +214,7 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
         cv_model.fit(cv_X_train, cv_y_train, eval_set=(cv_X_val, cv_y_val), early_stopping_rounds=100, verbose=0)
         
         probs = cv_model.predict_proba(cv_X_val)[:, 1]
-        _, score = find_best_threshold(cv_y_val, probs, f"P3.0 Fold {fold+1}", verbose=False)
+        _, score = find_best_threshold(cv_y_val, probs, f"P3.0 Fold {fold+1}", verbose=False, scoring_params=scoring_params_p3)
         cv_scores_p3.append(score)
         print(f"  Fold {fold+1} Profit Score: {score:.2f}")
         
@@ -222,7 +229,8 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     # P3.0 Report
     print("\n--- CatBoost P3.0 Report ---")
     preds_p3_prob = model_p3.predict_proba(X_val)[:, 1]
-    best_thresh_p3, _ = find_best_threshold(y_p3_val, preds_p3_prob, "CatBoost P3.0")
+    best_thresh_p3, best_score_p3 = find_best_threshold(y_p3_val, preds_p3_prob, "CatBoost P3.0", scoring_params=scoring_params_p3)
+    print(f"Best Threshold for CatBoost P3.0: {best_thresh_p3:.2f} (Score: {best_score_p3:.2f})")
     
     preds_p3 = (preds_p3_prob > best_thresh_p3).astype(int)
     cm_p3 = confusion_matrix(y_p3_val, preds_p3)

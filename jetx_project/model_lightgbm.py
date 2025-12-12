@@ -5,7 +5,7 @@ import os
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from .evaluation import detailed_evaluation
 
-def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3=None):
+def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3=None, scoring_params_p15=None, scoring_params_p3=None):
     """
     Trains LightGBM models.
     """
@@ -18,7 +18,13 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
     
     # Define Helper for Threshold Search
     from .config import PROFIT_SCORING_WEIGHTS
-    def find_best_threshold(y_true, y_prob, model_name, verbose=True):
+    def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
+        """
+        Finds the optimal threshold based on Profit Scoring.
+        """
+        if scoring_params is None:
+            scoring_params = PROFIT_SCORING_WEIGHTS
+            
         best_thresh = 0.5
         best_score = -float('inf')
         thresholds = np.arange(0.50, 0.99, 0.01)
@@ -29,10 +35,10 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
         for thresh in thresholds:
             preds = (y_prob > thresh).astype(int)
             tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            score = (tp * PROFIT_SCORING_WEIGHTS['TP']) - \
-                    (fp * PROFIT_SCORING_WEIGHTS['FP']) + \
-                    (tn * PROFIT_SCORING_WEIGHTS['TN']) - \
-                    (fn * PROFIT_SCORING_WEIGHTS['FN'])
+            score = (tp * scoring_params['TP']) - \
+                    (fp * scoring_params['FP']) + \
+                    (tn * scoring_params['TN']) - \
+                    (fn * scoring_params['FN'])
             
             if score > best_score:
                 best_score = score
@@ -138,7 +144,7 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
     # P1.5 Report
     print("\n--- LightGBM P1.5 Report ---")
     preds_p15_proba = clf_p15.predict_proba(X_val)[:, 1]
-    best_thresh_p15, _ = find_best_threshold(y_p15_val, preds_p15_proba, "LightGBM P1.5")
+    best_thresh_p15, best_score_p15 = find_best_threshold(y_p15_val, preds_p15_proba, "LightGBM P1.5", scoring_params=scoring_params_p15)
     
     # Use best threshold for reporting (Not detailed_evaluation call anymore)
     from sklearn.metrics import classification_report
@@ -150,7 +156,7 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
     # P3.0 Report
     print("\n--- LightGBM P3.0 Report ---")
     preds_p3_proba = clf_p3.predict_proba(X_val)[:, 1]
-    best_thresh_p3, _ = find_best_threshold(y_p3_val, preds_p3_proba, "LightGBM P3.0")
+    best_thresh_p3, best_score_p3 = find_best_threshold(y_p3_val, preds_p3_proba, "LightGBM P3.0", scoring_params=scoring_params_p3)
     
     preds_p3 = (preds_p3_proba > best_thresh_p3).astype(int)
     cm_p3 = confusion_matrix(y_p3_val, preds_p3)

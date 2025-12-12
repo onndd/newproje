@@ -106,3 +106,12 @@ PROFIT_SCORING_WEIGHTS = {
     'FN': 20,    # Minimal FOMO
     'PRECISION': 100
 }
+
+# P3.0 Specific Weights (Reduced Penalty for Risk Taking)
+PROFIT_SCORING_WEIGHTS_P3 = {
+    'TP': 100,
+    'TN': 1,
+    'FP': 125,   # Relaxed Penalty for High Multipliers (3.0x+)
+    'FN': 50,    # Increased FN Penalty to encourage 'not missing' big wins (optional, keeping 20 is also fine, sticking to plan 125 FP reduction mostly)
+    'PRECISION': 100
+}

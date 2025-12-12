@@ -65,7 +65,7 @@ class BinaryFocalLoss(tf.keras.losses.Loss):
         focal_loss = - alpha_t * tf.math.pow(1 - p_t, self.gamma) * tf.math.log(p_t)
         return tf.reduce_mean(focal_loss)
 
-def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p15=None, params_p3=None):
+def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15=None, scoring_params_p3=None):
     """
     Trains LSTM models for P1.5 and P3 with NO DATA LEAKAGE.
     """
@@ -73,7 +73,13 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
     # Define Helper for Threshold Search
     from sklearn.metrics import confusion_matrix, classification_report
     from .config import PROFIT_SCORING_WEIGHTS
-    def find_best_threshold(y_true, y_prob, model_name, verbose=True):
+    def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
+        """
+        Finds the optimal threshold based on Profit Scoring.
+        """
+        # Use provided scoring_params or default to PROFIT_SCORING_WEIGHTS
+        current_scoring_params = scoring_params if scoring_params is not None else PROFIT_SCORING_WEIGHTS
+            
         best_thresh = 0.5
         best_score = -float('inf')
         thresholds = np.arange(0.50, 0.99, 0.01)
@@ -84,10 +90,10 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
         for thresh in thresholds:
             preds = (y_prob > thresh).astype(int)
             tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            score = (tp * PROFIT_SCORING_WEIGHTS['TP']) - \
-                    (fp * PROFIT_SCORING_WEIGHTS['FP']) + \
-                    (tn * PROFIT_SCORING_WEIGHTS['TN']) - \
-                    (fn * PROFIT_SCORING_WEIGHTS['FN'])
+            score = (tp * current_scoring_params['TP']) - \
+                    (fp * current_scoring_params['FP']) + \
+                    (tn * current_scoring_params['TN']) - \
+                    (fn * current_scoring_params['FN'])
             
             if score > best_score:
                 best_score = score
@@ -96,6 +102,11 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
         if verbose:
             print(f"Best Threshold for {model_name}: {best_thresh:.2f} (Score: {best_score})")
         return best_thresh, best_score
+
+    # Default values for seq_length, epochs, batch_size if not in params
+    seq_length = params_p15.get('seq_length', 200) if params_p15 else 200
+    epochs = params_p15.get('epochs', 15) if params_p15 else 15
+    batch_size = params_p15.get('batch_size', 128) if params_p15 else 128
 
     # 1. Strict Chronological Split (Raw Data)
     n_total = len(values)
@@ -150,7 +161,7 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
                      callbacks=[EarlyStopping(monitor='val_loss', patience=2)])
         
         probs = model_cv.predict(X_v_cv, verbose=0)
-        _, score_p15 = find_best_threshold(y_p15_v_cv, probs, f"P1.5 Fold {fold+1}", verbose=False)
+        _, score_p15 = find_best_threshold(y_p15_v_cv, probs, f"P1.5 Fold {fold+1}", verbose=False, scoring_params=scoring_params_p15)
         cv_scores_p15.append(score_p15)
         
         # P3.0 Training (Optional or separate loop? Do both)
@@ -161,7 +172,7 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
                        epochs=5, batch_size=batch_size, verbose=0,
                        callbacks=[EarlyStopping(monitor='val_loss', patience=2)])
         probs_p3 = model_cv_p3.predict(X_v_cv, verbose=0)
-        _, score_p3 = find_best_threshold(y_p3_v_cv, probs_p3, f"P3.0 Fold {fold+1}", verbose=False)
+        _, score_p3 = find_best_threshold(y_p3_v_cv, probs_p3, f"P3.0 Fold {fold+1}", verbose=False, scoring_params=scoring_params_p3)
         cv_scores_p3.append(score_p3)
         
         print(f"  Fold {fold+1} Scores -> P1.5: {score_p15:.2f}, P3.0: {score_p3:.2f}")
@@ -212,7 +223,7 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
     # Defaults
     p15_args = {
         'units': 128, 'dropout': 0.2, 'dense_units': 64, 
-        'learning_rate': 0.001, 'batch_size': batch_size
+        'learning_rate': 0.001, 'batch_size': batch_size, 'epochs': epochs
     }
     
     if params_p15:
@@ -221,6 +232,7 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
         if 'dense_units' in params_p15: p15_args['dense_units'] = params_p15['dense_units']
         if 'lr' in params_p15: p15_args['learning_rate'] = params_p15['lr']
         if 'batch_size' in params_p15: p15_args['batch_size'] = params_p15['batch_size']
+        if 'epochs' in params_p15: p15_args['epochs'] = params_p15['epochs']
         
     model_p15 = build_lstm_model(seq_length, units=p15_args['units'], dropout=p15_args['dropout'], dense_units=p15_args['dense_units'])
     optimizer = tf.keras.optimizers.Adam(learning_rate=p15_args['learning_rate'])
@@ -228,13 +240,13 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
     
     callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
     model_p15.fit(X_train, y_p15_train, validation_data=(X_val, y_p15_val), 
-                  epochs=epochs, batch_size=p15_args['batch_size'], verbose=1, callbacks=callbacks)
+                  epochs=p15_args['epochs'], batch_size=p15_args['batch_size'], verbose=1, callbacks=callbacks)
 
     # Detailed Reporting P1.5
     from sklearn.metrics import confusion_matrix, classification_report
     preds_p15_prob = model_p15.predict(X_val)
     # Use helper defined at top
-    best_thresh_p15, _ = find_best_threshold(y_p15_val, preds_p15_prob, "LSTM P1.5")
+    best_thresh_p15, best_score_p15 = find_best_threshold(y_p15_val, preds_p15_prob, "LSTM P1.5", scoring_params=scoring_params_p15)
     
     preds_p15 = (preds_p15_prob >= best_thresh_p15).astype(int)
     print(f"Confusion Matrix (P1.5):\n{confusion_matrix(y_p15_val, preds_p15)}")
@@ -245,7 +257,7 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
     
     p3_args = {
         'units': 128, 'dropout': 0.2, 'dense_units': 64, 
-        'learning_rate': 0.001, 'batch_size': batch_size
+        'learning_rate': 0.001, 'batch_size': batch_size, 'epochs': epochs
     }
     
     if params_p3:
@@ -254,23 +266,23 @@ def train_model_lstm(values, seq_length=200, epochs=15, batch_size=128, params_p
         if 'dense_units' in params_p3: p3_args['dense_units'] = params_p3['dense_units']
         if 'lr' in params_p3: p3_args['learning_rate'] = params_p3['lr']
         if 'batch_size' in params_p3: p3_args['batch_size'] = params_p3['batch_size']
+        if 'epochs' in params_p3: p3_args['epochs'] = params_p3['epochs']
         
     model_p3 = build_lstm_model(seq_length, units=p3_args['units'], dropout=p3_args['dropout'], dense_units=p3_args['dense_units'])
     opt_3 = tf.keras.optimizers.Adam(learning_rate=p3_args['learning_rate'])
     model_p3.compile(optimizer=opt_3, loss=BinaryFocalLoss(gamma=2.0, alpha=0.25), metrics=metrics)
     
     model_p3.fit(X_train, y_p3_train, validation_data=(X_val, y_p3_val), 
-                  epochs=epochs, batch_size=p3_args['batch_size'], verbose=1, callbacks=callbacks)
+                  epochs=p3_args['epochs'], batch_size=p3_args['batch_size'], verbose=1, callbacks=callbacks)
 
     # Detailed Reporting P3.0
     preds_p3_prob = model_p3.predict(X_val)
-    best_thresh_p3, _ = find_best_threshold(y_p3_val, preds_p3_prob, "LSTM P3.0")
+    best_thresh_p3, best_score_p3 = find_best_threshold(y_p3_val, preds_p3_prob, "LSTM P3.0", scoring_params=scoring_params_p3)
     
     preds_p3 = (preds_p3_prob >= best_thresh_p3).astype(int)
     print(f"Confusion Matrix (P3.0):\n{confusion_matrix(y_p3_val, preds_p3)}")
     print(classification_report(y_p3_val, preds_p3))
     
-    return model_p15, model_p3, scaler
     cm_p3 = confusion_matrix(y_p3_val, preds_p3)
     print(f"Confusion Matrix (P3.0 @ {best_thresh_p3:.2f}):\n{cm_p3}")
     if cm_p3.shape == (2, 2):
