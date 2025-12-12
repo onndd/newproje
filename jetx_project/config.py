@@ -94,3 +94,15 @@ DB_PATH = 'jetx.db'
 # Central DB read limit to avoid OOM across scripts
 # DB_LIMIT = 2000 # Eski limit (Veri körlüğüne sebep oluyordu)
 DB_LIMIT = 50000 # Yeni limit (Yeterli veri için)
+
+# -------------------------------------------------------------------
+# PROFIT SCORING WEIGHTS (The "Sniper Logic" Configuration)
+# -------------------------------------------------------------------
+# Used by optimization.py and model training to calculate expected profit score.
+PROFIT_SCORING_WEIGHTS = {
+    'TP': 100,
+    'TN': 1,
+    'FP': 500,   # Absolute Safety Priority (Death Penalty)
+    'FN': 20,    # Minimal FOMO
+    'PRECISION': 100
+}
