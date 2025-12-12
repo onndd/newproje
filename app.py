@@ -274,10 +274,7 @@ if page == "🚀 Canlı Tahmin":
                     except Exception as e:
                         st.warning(f"⚠️ Model E Failed: {e}")
                         probs['E'] = None
-                if models.get('model_e'):
-                    me_cols = models['model_e']['cols']
-                    feats_mlp = feats_df[me_cols]
-                    probs['E'] = models['model_e']['p15'].predict_proba(feats_mlp)[0][1]
+
                 
             except Exception as e:
                 st.error(f"Feature Extraction Error: {e}")

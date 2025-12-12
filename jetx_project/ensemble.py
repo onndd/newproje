@@ -27,15 +27,26 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     Returns:
         meta_features: Numpy array of shape (n_samples, n_features)
     """
-    # 1. Determine n_samples safely from PREDICTIONS first (not values)
+    # 1. Determine n_samples safely from PREDICTIONS (any available model)
     # The app might pass values (history=250) but only 1 prediction.
-    # Priority check for n_samples from predictions
-    # 0. Check n_samples
     if n_samples is None:
-        # Infer from preds_a
-        if preds_a is None or len(preds_a) == 0:
-            raise ValueError("preds_a cannot be None or empty if n_samples is not provided.")
-        n_samples = len(preds_a)
+        # Check all prediction arrays for a valid length source
+        available_preds = [arr for arr in [preds_a, preds_b, preds_c, preds_d, preds_e, preds_transformer] if arr is not None and len(arr) > 0]
+        
+        if not available_preds:
+            # If NO models have predictions, we can't build meta-features unless purely creating empty dummy rows?
+            # But usually this means something is wrong or we extract 0 features.
+            # If 'values' is provided, maybe we infer from that? But usually we align to PREDICTIONS.
+            if values is not None and len(values) > 0:
+                 # Fallback: if we are just testing feature extraction without models?
+                 # Rare case. Let's error if we strictly need predictions.
+                 # But to be robust, let's look at history.
+                 # Actually, usually getting here means system is deeply broken or just starting.
+                 # Let's raise informative error ONLY if we really can't determine n_samples.
+                 pass 
+            raise ValueError("n_samples must be provided (or inferred from at least one model) to build meta-features.")
+        
+        n_samples = len(available_preds[0])
         
     inputs = {
         "preds_a": preds_a,
@@ -80,15 +91,14 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
             state = 1 # Default Normal
             print(f"Warning: Invalid HMM state val '{val}'. Defaulting to 1.")
 
+        # Strict Validation regarding n_hmm_components
+        if state >= n_hmm_components:
+             print(f"CRITICAL WARNING: Out-of-bound HMM state '{state}' (Max index: {n_hmm_components-1}). This implies model/config mismatch.")
+             # Fallback to middle state to avoid crash, but log loudly
+             state = n_hmm_components // 2
+        
         if 0 <= state < n_hmm_components:
             hmm_onehot[i, state] = 1
-        else:
-            # Fallback for out of bound states
-            # If we trained with 5 states but predict with 3? Or vice versa.
-            # We map to middle state (approximate)
-            middle_state = n_hmm_components // 2
-            hmm_onehot[i, middle_state] = 1
-            print(f"Warning: Out-of-bound HMM state '{state}' (Max: {n_hmm_components-1}). Defaulting to {middle_state}.")
             
     # Calculate 1.00x Frequency
     # We need to calculate this based on the *history available at each prediction point*.
