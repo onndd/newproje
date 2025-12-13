@@ -100,18 +100,17 @@ DB_LIMIT = 50000 # Yeni limit (Yeterli veri için)
 # -------------------------------------------------------------------
 # Used by optimization.py and model training to calculate expected profit score.
 PROFIT_SCORING_WEIGHTS = {
-    'TP': 100,
-    'TN': 1,
-    'FP': 185,   # Absolute Safety Priority (Death Penalty)
-    'FN': 20,    # Minimal FOMO
-    'PRECISION': 100
+    'TP': 100,  # Correct prediction (signal=1, actual=1)
+    'TN': 1,    # We don't care much about passivity, but giving small reward prevents 0-score
+    'FP': 195,  # False Alarm penalty (Increased to be more selective)
+    'FN': 13    # Missed Opportunity penalty (Decreased to allow missing some)
 }
 
 # P3.0 Specific Weights (Reduced Penalty for Risk Taking)
 PROFIT_SCORING_WEIGHTS_P3 = {
-    'TP': 100,
+    'TP': 400,  # HUGE Reward for catching a 3.00x
     'TN': 1,
-    'FP': 95,    # Relaxed Penalty for High Multipliers (3.0x+) - Reduced to 95 to encourage risk
-    'FN': 50,    # Increased FN Penalty to encourage 'not missing' big wins (optional, keeping 20 is also fine, sticking to plan 125 FP reduction mostly)
+    'FP': 200,  # Strict penalty to prevent "betting on everything"
+    'FN': 50,    # Standard miss penalty
     'PRECISION': 100
 }

@@ -196,22 +196,28 @@ def optimize_mlp(X, y, n_trials=20, scoring_params=None, timeout=300):
         from jetx_project.model_mlp import balance_data
         X_t_bal, y_t_bal = balance_data(X_train, y_train, target_class=0, multiplier=os_ratio)
         
-        # Architecture
-        n_layers = trial.suggest_int('n_layers', 1, 3)
+        # Simplification Strategy: "Shallower but Wider"
+        # We force 1 hidden layer to prevent overfitting/memorization of noise
+        n_layers = trial.suggest_int('n_layers', 1, 1) 
         layers = []
         for i in range(n_layers):
-            layers.append(trial.suggest_int(f'n_units_l{i}', 32, 256))
+            # Wide layer
+            layers.append(trial.suggest_int(f'n_units_l{i}', 32, 128))
+            
+        activation = trial.suggest_categorical('activation', ['relu', 'tanh'])
+        solver = 'adam' # Adam is generally best for noisy data
+        alpha = trial.suggest_float('alpha', 0.0001, 0.01) # Regularization strength
+        learning_rate_init = trial.suggest_float('learning_rate_init', 0.0001, 0.01)
         
         clf = MLPClassifier(
             hidden_layer_sizes=tuple(layers),
-            activation='relu',
-            solver='adam',
-            alpha=trial.suggest_float('alpha', 0.0001, 0.1, log=True),
-            learning_rate_init=trial.suggest_float('lr', 0.0001, 0.01, log=True),
-            max_iter=200,
-            early_stopping=True,
-            validation_fraction=0.1,
-            random_state=42
+            activation=activation,
+            solver=solver,
+            alpha=alpha,
+            learning_rate_init=learning_rate_init,
+            max_iter=500, # Give it enough time to converge
+            random_state=42,
+            early_stopping=True
         )
         
         clf.fit(X_t_bal, y_t_bal)
@@ -341,4 +347,3 @@ def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=10, scor
     
     # Return single dict. Caller handles duplication if needed.
     return study.best_params
-```

@@ -91,26 +91,48 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
     print(f"[CV] Average P1.5 Score: {np.mean(cv_scores):.2f}")
     # --------------------------------
 
+    # -----------------------------------------------------
+    # OPTIONAL: Feature Selection (Top 20)
+    # -----------------------------------------------------
+    # User requested to use only the Best 20 features to reduce noise.
+    # We will use the P1.5 fit to determine importance (or we could do it separately).
+    
+    print("\n[Feature Selection] Selecting Top 20 Features...")
+    
+    # 1. Fit a strict temporary model to find generic importance
+    selector_model = lgb.LGBMClassifier(n_estimators=100, verbose=-1)
+    selector_model.fit(X_t, y_p15_t)
+    
+    # 2. Get Importance
+    importances = selector_model.feature_importances_
+    feature_names = X_t.columns
+    
+    # 3. Select Top 20
+    # Sort indices
+    indices = np.argsort(importances)[::-1]
+    top_20_indices = indices[:20]
+    top_20_features = feature_names[top_20_indices].tolist()
+    
+    print(f"Top 20 Features Selected: {top_20_features}")
+    
+    # 4. Filter Datasets
+    X_train_sel = X_train[top_20_features]
+    X_val_sel = X_val[top_20_features]
+    X_t_sel = X_t[top_20_features]
+    
+    # Re-define P1.5 Training with Selected Features
+    print("Training LightGBM (P1.5) with Selected Features...")
     clf_p15 = lgb.LGBMClassifier(**params)
-    clf_p15.fit(X_t, y_p15_t, eval_set=[(X_val, y_p15_val)], eval_metric='logloss', 
+    clf_p15.fit(X_t_sel, y_p15_t, eval_set=[(X_val_sel, y_p15_val)], eval_metric='logloss', 
                 callbacks=[lgb.early_stopping(100)])
     
     # 2. Model P3.0 (Classifier)
     # -----------------------------------------------------
-    print("Training LightGBM (P3.0)...")
-    params_3 = {
-        'n_estimators': 2000, 
-        'learning_rate': 0.01, 
-        'num_leaves': 50, 
-        'min_child_samples': 10,
-        'subsample': 0.8,
-        'colsample_bytree': 0.8,
-        # 'class_weight': 'balanced' # Removed mostly, let Optuna decide
-    }
+    print("Training LightGBM (P3.0) with Selected Features...")
+    params_3 = params.copy()
     if params_p3:
         print(f"Using optimized parameters for LightGBM P3.0: {params_p3}")
         params_3.update(params_p3)
-        
         if 'class_weight' in params_3 and params_3['class_weight'] is None:
             params_3.pop('class_weight')
         

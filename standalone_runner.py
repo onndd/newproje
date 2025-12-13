@@ -120,9 +120,9 @@ def main():
     bp_lgb_p15 = optimize_lightgbm(X_a, y_p15_a, n_trials=15, scoring_params=PROFIT_SCORING_WEIGHTS)
     bp_lgb_p3 = optimize_lightgbm(X_a, y_p3_a, n_trials=15, scoring_params=PROFIT_SCORING_WEIGHTS_P3)
     
-    md_p15, md_p3 = train_model_lightgbm(X_a, y_p15_a, y_p3_a, params_p15=bp_lgb_p15, params_p3=bp_lgb_p3,
+    md_p15, md_p3, md_cols = train_model_lightgbm(X_a, y_p15_a, y_p3_a, params_p15=bp_lgb_p15, params_p3=bp_lgb_p3,
                                          scoring_params_p15=PROFIT_SCORING_WEIGHTS, scoring_params_p3=PROFIT_SCORING_WEIGHTS_P3)
-    save_lightgbm_models(md_p15, md_p3, output_dir='models_standalone')
+    save_lightgbm_models(md_p15, md_p3, output_dir='models_standalone') # Note: Check if save supports cols later
     
     # 7. Train Model E (MLP) with Optimization
     print("\n[7/9] Optimizing & Training Model E (MLP)...")
