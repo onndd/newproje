@@ -1,16 +1,20 @@
+
 import numpy as np
 import joblib
 import os
+import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from catboost import CatBoostClassifier
 
 from .model_anomaly import check_anomaly
+from .model_fourier import FourierDetector # New Import
 
 def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_states, values=None, preds_transformer=None, n_samples=None, n_hmm_components=3):
     """
     Combines predictions from all models into a single feature matrix for the meta-learner.
-    Includes 'Recent 1.00x Frequency' feature if values are provided.
-    Includes Transformer predictions if provided.
+    Includes 'Recent 1.00x Frequency' feature.
+    Includes Transformer predictions.
+    Includes Model G (Fourier) Rhythms.
     
     Args:
         preds_a: Predictions from Model A (CatBoost)
@@ -19,7 +23,7 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         preds_d: Predictions from Model D (LightGBM)
         preds_e: Predictions from Model E (MLP)
         hmm_states: Array of HMM states
-        values: (Optional) Raw values for frequency calc
+        values: (Optional) Raw values for frequency & Fourier calc
         preds_transformer: (Optional) Transformer preds
         n_samples: (Optional) Explicit sample count
         n_hmm_components: (Optional) Number of HMM states (default 3)
@@ -28,21 +32,11 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         meta_features: Numpy array of shape (n_samples, n_features)
     """
     # 1. Determine n_samples safely from PREDICTIONS (any available model)
-    # The app might pass values (history=250) but only 1 prediction.
     if n_samples is None:
-        # Check all prediction arrays for a valid length source
         available_preds = [arr for arr in [preds_a, preds_b, preds_c, preds_d, preds_e, preds_transformer] if arr is not None and len(arr) > 0]
         
         if not available_preds:
-            # If NO models have predictions, we can't build meta-features unless purely creating empty dummy rows?
-            # But usually this means something is wrong or we extract 0 features.
-            # If 'values' is provided, maybe we infer from that? But usually we align to PREDICTIONS.
             if values is not None and len(values) > 0:
-                 # Fallback: if we are just testing feature extraction without models?
-                 # Rare case. Let's error if we strictly need predictions.
-                 # But to be robust, let's look at history.
-                 # Actually, usually getting here means system is deeply broken or just starting.
-                 # Let's raise informative error ONLY if we really can't determine n_samples.
                  pass 
             raise ValueError("n_samples must be provided (or inferred from at least one model) to build meta-features.")
         
@@ -63,8 +57,6 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
             cleaned_inputs[name] = np.full(n_samples, 0.5)
         else:
             if len(arr) != n_samples:
-                # Audit Fix: Strict Error for length mismatch
-                # Silent padding caused drift. We must fail fast.
                 raise ValueError(f"CRITICAL: Meta-feature '{name}' length mismatch! Expected {n_samples}, got {len(arr)}. Alignment error in pipeline.")
             else:
                 cleaned_inputs[name] = arr
@@ -73,7 +65,6 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
     if hmm_states is None or len(hmm_states) == 0:
         cleaned_hmm = np.full(n_samples, 1) # Default Normal
     else:
-        # If hmm_states comes from full history (len=250) and n_samples=1
         if len(hmm_states) > n_samples:
             cleaned_hmm = hmm_states[-n_samples:]
         elif len(hmm_states) < n_samples:
@@ -81,38 +72,26 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         else:
             cleaned_hmm = hmm_states
     
-    # One-Hot Encode HMM States (Dynamic)
+    # One-Hot Encode HMM States
     hmm_onehot = np.zeros((n_samples, n_hmm_components))
     for i in range(n_samples):
         val = cleaned_hmm[i]
         try:
             state = int(val)
         except:
-            state = 1 # Default Normal
-            print(f"Warning: Invalid HMM state val '{val}'. Defaulting to 1.")
-
-        # Strict Validation regarding n_hmm_components
+            state = 1
+        
         if state >= n_hmm_components:
-             print(f"CRITICAL WARNING: Out-of-bound HMM state '{state}' (Max index: {n_hmm_components-1}). This implies model/config mismatch.")
-             # Fallback to middle state to avoid crash, but log loudly
              state = n_hmm_components // 2
         
         if 0 <= state < n_hmm_components:
             hmm_onehot[i, state] = 1
             
     # Calculate 1.00x Frequency
-    # We need to calculate this based on the *history available at each prediction point*.
-    # If n_samples=1, we just calculate it for the last window.
     bust_freq = np.zeros(n_samples)
     
     if values is not None and len(values) > 0:
-        import pandas as pd
         vals_array = np.array(values)
-        
-        # Logic: 
-        # If n_samples == 1: Calculate freq on values[-50:]
-        # If n_samples == len(values): Calculate rolling freq on all values
-        
         is_bust = (vals_array <= 1.00).astype(int)
         bust_freq_series = pd.Series(is_bust).rolling(window=50, min_periods=1).mean()
         all_freqs = bust_freq_series.values
@@ -120,11 +99,50 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
         if len(all_freqs) >= n_samples:
             bust_freq = all_freqs[-n_samples:]
         else:
-            # Pad is okay here because it's feature extraction from history, not model prediction alignment
             pad_len = n_samples - len(all_freqs)
             bust_freq = np.pad(all_freqs, (pad_len, 0), mode='edge')
+
+    # --- MODEL G: FOURIER ANALYSIS ---
+    # We define the windows here as per spec
+    fourier_detector = FourierDetector(window_sizes=[64, 256, 1024])
+    
+    # We need n_samples rows of features
+    # Each row 'i' corresponds to the state at time 't'
+    # Ideally, we calculate this on the full 'values' history and slice the last n_samples.
+    
+    # Default (empty) features if values missing
+    fourier_features_list = []
+    
+    if values is not None and len(values) > 0:
+        vals_array = np.array(values)
+        # Run Batch Analysis
+        # This returns a DataFrame with same length as vals_array
+        fourier_df = fourier_detector.analyze_batch(vals_array)
+        
+        if len(fourier_df) >= n_samples:
+            # Slice last n_samples
+            df_slice = fourier_df.iloc[-n_samples:]
+        else:
+            # Pad
+            pad_len = n_samples - len(fourier_df)
+            # Create padding df with neutral values
+            pad_data = {}
+            for col in fourier_df.columns:
+                if 'strength' in col: val = 0.0
+                else: val = 0.5
+                pad_data[col] = np.full(pad_len, val)
+            pad_df = pd.DataFrame(pad_data)
+            df_slice = pd.concat([pad_df, fourier_df], ignore_index=True)
+            
+        # Convert to list of arrays (columns)
+        for col in df_slice.columns:
+            fourier_features_list.append(df_slice[col].values)
     else:
-        pass
+        # Create zero/neutral arrays
+        # 3 windows * 2 features = 6 columns
+        for w in [64, 256, 1024]:
+            fourier_features_list.append(np.zeros(n_samples)) # strength
+            fourier_features_list.append(np.full(n_samples, 0.5)) # phase
             
     # Handle Transformer Predictions
     feature_list = [
@@ -140,13 +158,14 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
             raise ValueError(f"Length mismatch in meta features: expected {n_samples}, got {len(preds_transformer)} for preds_transformer")
         feature_list.append(preds_transformer)
     else:
-        # Fix: Add dummy column (neutral 0.5) to maintain shape for Meta-Learner
-        # The meta-learner was trained with this column, so it expects it.
         dummy_transformer = np.full(n_samples, 0.5)
         feature_list.append(dummy_transformer)
         
     feature_list.append(hmm_onehot)
     feature_list.append(bust_freq)
+    
+    # Append Fourier Features (6 columns)
+    feature_list.extend(fourier_features_list)
 
     meta_features = np.column_stack(feature_list)
     
@@ -154,13 +173,12 @@ def prepare_meta_features(preds_a, preds_b, preds_c, preds_d, preds_e, hmm_state
 
 def train_meta_learner(meta_features, y_true):
     """
-    Trains a CatBoost meta-learner (gradient boosting) instead of Logistic Regression.
+    Trains a CatBoost meta-learner (gradient boosting).
     """
-    # Özellikleri tutarlılık için ölçekliyoruz (CatBoost şart koşmuyor ama normalize ediyoruz)
     scaler = StandardScaler()
     meta_features_scaled = scaler.fit_transform(meta_features)
     
-    print("Training Meta-Learner (CatBoost)...")
+    print(f"Training Meta-Learner (CatBoost) on {meta_features.shape[1]} features...")
     meta_model = CatBoostClassifier(
         iterations=1000,
         learning_rate=0.03,
@@ -173,6 +191,16 @@ def train_meta_learner(meta_features, y_true):
         random_seed=42
     )
     meta_model.fit(meta_features_scaled, y_true)
+    
+    # Feature Importance Reporting (Added for Verification)
+    try:
+        importance = meta_model.get_feature_importance()
+        # We don't have exact col names here easily, but we know indices.
+        # Just simple print of top importance
+        print("Meta-Learner Top Feature Importances (Indices):", np.argsort(importance)[::-1][:5])
+    except:
+        pass
+
     return meta_model, scaler
 
 def save_meta_learner(model, scaler, output_dir='.'):
