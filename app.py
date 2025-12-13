@@ -335,7 +335,8 @@ if page == "🚀 Canlı Tahmin":
         # Prepare Meta Features
         # Fix: Wrap in Try/Except for Robustness
         try:
-            real_history = np.array(st.session_state.history[-250:]) if st.session_state.history else np.array([])
+            # FIX: Fourier model needs at least 1024 rows. Passing 1500 to be safe.
+            real_history = np.array(st.session_state.history[-1500:]) if st.session_state.history else np.array([])
             # Retrieve HMM component count if available
             n_hmm_components = 3
             if models.get('hmm') and hasattr(models['hmm']['model'], 'n_components'):
