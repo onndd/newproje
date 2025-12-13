@@ -225,28 +225,20 @@ def optimize_mlp(X, y, n_trials=20, scoring_params=None, timeout=300):
     print(f"Best MLP params: {study.best_params}")
     return study.best_params
 
-def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=15, scoring_params=None, timeout=600):
+def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=10, scoring_params=None, timeout=600, target_threshold=1.50):
     """
     Optimizes LSTM hyperparameters.
     Supports TWO signatures for backward compatibility:
-    1. New: optimize_lstm(values, n_trials=...)
+    1. New: optimize_lstm(values, n_trials=..., target_threshold=...)
     2. Old: optimize_lstm(X_train, y_train, X_val, y_val, n_trials=...)
     """
-    print(f"--- Starting LSTM Optimization ({n_trials} trials) ---")
+    print(f"--- Starting LSTM Optimization ({n_trials} trials, Target > {target_threshold}x) ---")
     
     # Determine mode
     if arg2 is not None and arg3 is not None and arg4 is not None:
         # Legacy Mode: (X_train, y_train, X_val, y_val) passed
         print("Legacy mode detected: Using provided X/y splits.")
         X_train, y_train, X_val, y_val = input_data, arg2, arg3, arg4
-        
-        # In legacy mode, we assume the user passed binary targets (P1.5 or P3)
-        # We assume the caller knows what they are optimizing for.
-        # But wait, standalone runner expects TWO return values (best_p15, best_p3).
-        # Notebook expects ONE return value (best_params).
-        # We must return what is expected based on context.
-        # IF legacy mode -> Return only ONE params dict (Objective logic follows)
-        
     else:
         # New Mode: Raw values passed
         print("New mode detected: Generating sequences from values.")
@@ -284,22 +276,13 @@ def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=15, scor
         X_val, y_val_scaled = create_sequences(val_scaled, SEQ_LEN)
         
         # Target Conversion (Scaled -> Binary)
-        # We need "Real" values to determine binary target >1.50
+        # We need "Real" values to determine binary target > target_threshold
         # Inverse transform y
         y_train_real = np.expm1(scaler.inverse_transform(y_train_scaled))
         y_val_real = np.expm1(scaler.inverse_transform(y_val_scaled))
         
-        y_train = (y_train_real >= 1.50).astype(int).flatten()
-        y_val = (y_val_real >= 1.50).astype(int).flatten()
-        
-        # For new mode (Standalone Runner), we strictly need to return TWO dictionaries
-        # because the calling line is: bp_lstm_p15, bp_lstm_p3 = optimize_lstm(values)
-        # But standard optimization usually runs once for architecture.
-        # We will duplicate the params for now or run two studies? 
-        # Running two studies is cleaner but slower.
-        # For now, let's optimize ONCE for P1.5 and return same architecture for both.
-        # This saves time and usually architecture (layers/units) transfers well.
-        # We will return (best_params, best_params)
+        y_train = (y_train_real >= target_threshold).astype(int).flatten()
+        y_val = (y_val_real >= target_threshold).astype(int).flatten()
         
     def objective(trial):
         seq_len = X_train.shape[1]
@@ -347,20 +330,15 @@ def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=15, scor
         
         # Score
         preds_proba = model.predict(X_val, verbose=0).flatten()
-        preds = (preds_proba >= 0.5).astype(int)
-        
-        return calculate_profit_score(y_val, preds)
+        # Find best threshold dynamically
+        best_thresh, best_score = find_best_threshold(y_val, preds_proba, "LSTM_Opt", verbose=False, scoring_params=scoring_params)
+        return best_score
 
     study = optuna.create_study(direction='maximize')
     study.optimize(objective, n_trials=n_trials, timeout=timeout)
     
     print(f"Best LSTM params: {study.best_params}")
     
-    # Polymorphic Return
-    if arg2 is not None:
-        # Legacy Mode (Notebook): Expects single return
-        return study.best_params
-    else:
-        # New Mode (Runner): Expects tuple (p15, p3)
-        # We use the same best params for both for now to save compute
-        return study.best_params, study.best_params
+    # Return single dict. Caller handles duplication if needed.
+    return study.best_params
+```

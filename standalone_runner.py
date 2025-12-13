@@ -89,7 +89,10 @@ def main():
     
     # 5. Train Model C (LSTM) with Optimization
     print("\n[5/9] Optimizing & Training Model C (LSTM)...")
-    bp_lstm_p15, bp_lstm_p3 = optimize_lstm(values, n_trials=10, scoring_params=PROFIT_SCORING_WEIGHTS) # LSTM might need P3 params for internal P3 opt? optimize_lstm does both.
+    # Optimize P1.5 (Standard)
+    bp_lstm_p15 = optimize_lstm(values, n_trials=10, scoring_params=PROFIT_SCORING_WEIGHTS, target_threshold=1.50)
+    # Optimize P3.0 (Relaxed params + higher threshold for data generation)
+    bp_lstm_p3 = optimize_lstm(values, n_trials=10, scoring_params=PROFIT_SCORING_WEIGHTS_P3, target_threshold=3.00)
     # Refactor optimize_lstm is tricky because it calls optimization internally for P1.5 and P3 if supported. 
     # Current optimize_lstm seems to do both. Let's check signature. 
     # optimize_lstm(values_seq, n_trials=10, scoring_params=None) 
