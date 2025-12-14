@@ -65,13 +65,13 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     X_t, X_val = X_train.iloc[:split_idx], X_train.iloc[split_idx:]
     
     # Define Helper for Threshold Search
-    from .config import PROFIT_SCORING_WEIGHTS
+    from .config import PROFIT_SCORING_WEIGHTS, SCORING_CATBOOST
     def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
         """
         Finds the optimal threshold based on Profit Scoring.
         """
         if scoring_params is None:
-            scoring_params = PROFIT_SCORING_WEIGHTS
+            scoring_params = SCORING_CATBOOST
             
         best_thresh = 0.5
         best_score = -float('inf')

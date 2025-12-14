@@ -9,7 +9,7 @@ import joblib
 sys.path.append(os.getcwd())
 
 # Import Project Modules
-from jetx_project.config import DB_PATH, HMM_BIN_EDGES, DB_LIMIT, PROFIT_SCORING_WEIGHTS, PROFIT_SCORING_WEIGHTS_P3
+from jetx_project.config import DB_PATH, HMM_BIN_EDGES, DB_LIMIT, PROFIT_SCORING_WEIGHTS, PROFIT_SCORING_WEIGHTS_P3, SCORING_CATBOOST, SCORING_LSTM, SCORING_LIGHTGBM, SCORING_MLP, SCORING_TRANSFORMER
 from jetx_project.data_loader import load_data, get_values_array
 from jetx_project.model_a import prepare_model_a_data, train_model_a, save_models
 from jetx_project.model_b import build_memory, train_model_b, save_memory
@@ -73,12 +73,12 @@ def main():
     print("\n[3/9] Optimizing & Training Model A (CatBoost)...")
     print("\n[3/9] Optimizing & Training Model A (CatBoost)...")
     # Optimize P1.5 (Standard)
-    bp_cat_p15 = optimize_catboost(X_a, y_p15_a, n_trials=15, scoring_params=PROFIT_SCORING_WEIGHTS)
+    bp_cat_p15 = optimize_catboost(X_a, y_p15_a, n_trials=15, scoring_params=SCORING_CATBOOST)
     # Optimize P3.0 (Relaxed)
     bp_cat_p3 = optimize_catboost(X_a, y_p3_a, n_trials=15, scoring_params=PROFIT_SCORING_WEIGHTS_P3)
     
     ma_p15, ma_p3, ma_x = train_model_a(X_a, y_p15_a, y_p3_a, y_x_a, params_p15=bp_cat_p15, params_p3=bp_cat_p3, 
-                                        scoring_params_p15=PROFIT_SCORING_WEIGHTS, scoring_params_p3=PROFIT_SCORING_WEIGHTS_P3)
+                                        scoring_params_p15=SCORING_CATBOOST, scoring_params_p3=PROFIT_SCORING_WEIGHTS_P3)
     save_models(ma_p15, ma_p3, ma_x, output_dir='models_standalone')
     
     # 4. Train Model B (Memory)
@@ -90,7 +90,7 @@ def main():
     # 5. Train Model C (LSTM) with Optimization
     print("\n[5/9] Optimizing & Training Model C (LSTM)...")
     # Optimize P1.5 (Standard)
-    bp_lstm_p15 = optimize_lstm(values, n_trials=10, scoring_params=PROFIT_SCORING_WEIGHTS, target_threshold=1.50)
+    bp_lstm_p15 = optimize_lstm(values, n_trials=10, scoring_params=SCORING_LSTM, target_threshold=1.50)
     # Optimize P3.0 (Relaxed params + higher threshold for data generation)
     bp_lstm_p3 = optimize_lstm(values, n_trials=10, scoring_params=PROFIT_SCORING_WEIGHTS_P3, target_threshold=3.00)
     # Refactor optimize_lstm is tricky because it calls optimization internally for P1.5 and P3 if supported. 
@@ -112,25 +112,25 @@ def main():
     # BUT for Training (train_model_lstm), we can pass specific parameters!
     
     mc_p15, mc_p3, mc_scaler = train_model_lstm(values, params_p15=bp_lstm_p15, params_p3=bp_lstm_p3,
-                                                scoring_params_p15=PROFIT_SCORING_WEIGHTS, scoring_params_p3=PROFIT_SCORING_WEIGHTS_P3)
+                                                scoring_params_p15=SCORING_LSTM, scoring_params_p3=PROFIT_SCORING_WEIGHTS_P3)
     save_lstm_models(mc_p15, mc_p3, mc_scaler, output_dir='models_standalone')
     
     # 6. Train Model D (LightGBM) with Optimization
     print("\n[6/9] Optimizing & Training Model D (LightGBM)...")
-    bp_lgb_p15 = optimize_lightgbm(X_a, y_p15_a, n_trials=15, scoring_params=PROFIT_SCORING_WEIGHTS)
+    bp_lgb_p15 = optimize_lightgbm(X_a, y_p15_a, n_trials=15, scoring_params=SCORING_LIGHTGBM)
     bp_lgb_p3 = optimize_lightgbm(X_a, y_p3_a, n_trials=15, scoring_params=PROFIT_SCORING_WEIGHTS_P3)
     
     md_p15, md_p3, md_cols = train_model_lightgbm(X_a, y_p15_a, y_p3_a, params_p15=bp_lgb_p15, params_p3=bp_lgb_p3,
-                                         scoring_params_p15=PROFIT_SCORING_WEIGHTS, scoring_params_p3=PROFIT_SCORING_WEIGHTS_P3)
+                                         scoring_params_p15=SCORING_LIGHTGBM, scoring_params_p3=PROFIT_SCORING_WEIGHTS_P3)
     save_lightgbm_models(md_p15, md_p3, output_dir='models_standalone') # Note: Check if save supports cols later
     
     # 7. Train Model E (MLP) with Optimization
     print("\n[7/9] Optimizing & Training Model E (MLP)...")
-    bp_mlp_p15 = optimize_mlp(X_a, y_p15_a, n_trials=30, scoring_params=PROFIT_SCORING_WEIGHTS)
+    bp_mlp_p15 = optimize_mlp(X_a, y_p15_a, n_trials=30, scoring_params=SCORING_MLP)
     bp_mlp_p3 = optimize_mlp(X_a, y_p3_a, n_trials=30, scoring_params=PROFIT_SCORING_WEIGHTS_P3)
     
     me_p15, me_p3, me_cols = train_model_mlp(X_a, y_p15_a, y_p3_a, params_p15=bp_mlp_p15, params_p3=bp_mlp_p3,
-                                             scoring_params_p15=PROFIT_SCORING_WEIGHTS, scoring_params_p3=PROFIT_SCORING_WEIGHTS_P3)
+                                             scoring_params_p15=SCORING_MLP, scoring_params_p3=PROFIT_SCORING_WEIGHTS_P3)
     save_mlp_models(me_p15, me_p3, me_cols, output_dir='models_standalone')
     
     # 8. Train Transformer

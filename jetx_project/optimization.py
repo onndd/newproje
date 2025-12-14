@@ -16,20 +16,24 @@ def calculate_profit_score(y_true, y_pred):
     Calculates a custom score based on estimated profit.
     """
     cm = confusion_matrix(y_true, y_pred)
-    if cm.shape != (2, 2):
-        return -1000.0
+    if scoring_params is None:
+        from .config import PROFIT_SCORING_WEIGHTS
+        scoring_params = PROFIT_SCORING_WEIGHTS
         
     tn, fp, fn, tp = cm.ravel()
     
-    # Custom Score Formula (Sniper Logic):
-    # + TP * 100 (Big Reward for Risk - Incentive to Enter)
-    # + TN * 1   (Minimal Reward for Safety - Prevent TN Farming)
-    # - FP * 500 (DEATH PENALTY - Absolute Safety Requirement)
-    # - FN * 20  (FOMO Penalty - Don't be too coward)
-    # + Precision * 100 (Reliability Bonus)
+    # Dynamic Score Formula:
+    # Uses weights passed from config.py (SCORING_CATBOOST, SCORING_LSTM, etc.)
+    # No more hardcoded "death penalty" here.
     
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0
-    score = (tp * 100) + (tn * 1) - (fp * 500) - (fn * 20) + (precision * 100)
+    
+    score = (tp * scoring_params['TP']) + \
+            (tn * scoring_params['TN']) - \
+            (fp * scoring_params['FP']) - \
+            (fn * scoring_params['FN']) + \
+            (precision * scoring_params.get('PRECISION', 0))
+            
     return score
 
 def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
@@ -37,8 +41,8 @@ def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params
     Finds the optimal threshold based on Profit Scoring.
     """
     if scoring_params is None:
-        from .config import PROFIT_SCORING_WEIGHTS
-        scoring_params = PROFIT_SCORING_WEIGHTS
+        from .config import SCORING_CATBOOST
+        scoring_params = SCORING_CATBOOST
         
     best_thresh = 0.5
     best_score = -float('inf')
@@ -86,6 +90,10 @@ def optimize_catboost(X, y, n_trials=20, scoring_params=None, timeout=600):
     """
     print(f"--- Starting CatBoost Optimization ({n_trials} trials) ---")
     
+    if scoring_params is None:
+        from .config import SCORING_CATBOOST
+        scoring_params = SCORING_CATBOOST
+    
     # Split data
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, shuffle=False)
     
@@ -116,6 +124,7 @@ def optimize_catboost(X, y, n_trials=20, scoring_params=None, timeout=600):
             
             preds_proba = model.predict_proba(X_val)[:, 1]
             # Custom Profit Metric
+            # Important: scoring_params is passed down from optimize_catboost -> objective -> find_best_threshold
             best_thresh, best_score = find_best_threshold(y_val, preds_proba, "CatBoost_Opt", verbose=False, scoring_params=scoring_params)
             return best_score
                 
@@ -135,6 +144,10 @@ def optimize_lightgbm(X, y, n_trials=20, scoring_params=None, timeout=600):
     """
     print(f"--- Starting LightGBM Optimization ({n_trials} trials) ---")
     
+    if scoring_params is None:
+        from .config import SCORING_LIGHTGBM
+        scoring_params = SCORING_LIGHTGBM
+
     # Split data (Time-series split)
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, shuffle=False)
     
@@ -185,6 +198,10 @@ def optimize_mlp(X, y, n_trials=20, scoring_params=None, timeout=300):
     Optimizes MLP hyperparameters.
     """
     print(f"--- Starting MLP Optimization ({n_trials} trials) ---")
+
+    if scoring_params is None:
+        from .config import SCORING_MLP
+        scoring_params = SCORING_MLP
     
     # Handle NaNs for MLP (sklearn requires clean input)
     from sklearn.impute import SimpleImputer
@@ -252,6 +269,12 @@ def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=10, scor
     2. Old: optimize_lstm(X_train, y_train, X_val, y_val, n_trials=...)
     """
     print(f"--- Starting LSTM Optimization ({n_trials} trials, Target > {target_threshold}x) ---")
+    
+    if scoring_params is None:
+        # Note: If target_threshold > 2.0, user might want to pass PROFIT_SCORING_WEIGHTS_P3 externally.
+        # But for default optimization without explicit params, we use SCORING_LSTM.
+        from .config import SCORING_LSTM
+        scoring_params = SCORING_LSTM
     
     # Determine mode
     if arg2 is not None and arg3 is not None and arg4 is not None:

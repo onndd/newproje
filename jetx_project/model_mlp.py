@@ -52,8 +52,10 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     
     
     # Define Helper for Threshold Search
-    from .config import PROFIT_SCORING_WEIGHTS
-    def find_best_threshold(y_true, y_prob, model_name, verbose=True):
+    from .config import PROFIT_SCORING_WEIGHTS, SCORING_MLP
+    def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
+        if scoring_params is None:
+            scoring_params = SCORING_MLP
         best_thresh = 0.5
         best_score = -float('inf')
         thresholds = np.arange(0.50, 0.99, 0.01)

@@ -99,18 +99,85 @@ DB_LIMIT = 50000 # Yeni limit (Yeterli veri için)
 # PROFIT SCORING WEIGHTS (The "Sniper Logic" Configuration)
 # -------------------------------------------------------------------
 # Used by optimization.py and model training to calculate expected profit score.
+# -------------------------------------------------------------------
+# PROFIT SCORING WEIGHTS (The "Sniper Logic" Configuration)
+# -------------------------------------------------------------------
+# Used by optimization.py and model training to calculate expected profit score.
+
+# DEFAULT / FALLBACK WEIGHTS
 PROFIT_SCORING_WEIGHTS = {
-    'TP': 100,  # Correct prediction (signal=1, actual=1)
-    'TN': 1,    # We don't care much about passivity, but giving small reward prevents 0-score
-    'FP': 120,  # False Alarm penalty (Reduced from 195 to 120 to encourage calibrated risk)
-    'FN': 10    # Missed Opportunity penalty (Low penalty)
+    'TP': 100,  # Correct prediction
+    'TN': 1,    # Small reward for correct passivity
+    'FP': 120,  # Standard penalty for False Alarm
+    'FN': 10,   # Missed Opportunity penalty
+    'PRECISION': 50 # Bonus for high precision
 }
 
-# P3.0 Specific Weights (Reduced Penalty for Risk Taking)
+# 1. CATBOOST (Model A - The Sniper)
+# Needs to be very precise but not paralyzed.
+SCORING_CATBOOST = {
+    'TP': 100,
+    'TN': 1,
+    'FP': 120, # Moderate penalty to encourage taking calculated risks
+    'FN': 20,  # Slightly higher FOMO penalty to prevent over-silence
+    'PRECISION': 100 # High precision bonus
+}
+
+# 2. LSTM (Model C - The Pattern Seeker)
+# Deep learning can be noisy, allow slightly more leeway but reward catching trends.
+SCORING_LSTM = {
+    'TP': 150, # Higher reward for catching complex time-series patterns
+    'TN': 1,
+    'FP': 100, # Lower penalty than CatBoost (DL needs room to breathe)
+    'FN': 10,
+    'PRECISION': 50
+}
+
+# 3. LIGHTGBM (Model D - The Fast Learner)
+# Similar to CatBoost but often more aggressive.
+SCORING_LIGHTGBM = {
+    'TP': 100,
+    'TN': 1,
+    'FP': 130, # Stricter penalty to curb LightGBM's tendency to over-predict
+    'FN': 10,
+    'PRECISION': 80
+}
+
+# 4. MLP (Model E - The Neural Net)
+# Often unstable on tabular data, needs strict guidance.
+SCORING_MLP = {
+    'TP': 120,
+    'TN': 1,
+    'FP': 150, # High penalty to prevent noise fitting
+    'FN': 5,
+    'PRECISION': 50
+}
+
+# 5. MEMORY (Model B - The Historian)
+# Based on exact matches, usually high precision naturally.
+SCORING_MEMORY = {
+    'TP': 100,
+    'TN': 1,
+    'FP': 200, # Very strict! Memory should only speak if it REMEMBERS correctly.
+    'FN': 0,   # No penalty for silence (it's okay to not strictly match)
+    'PRECISION': 100
+}
+
+# 6. TRANSFORMER (Model F - The Visionary)
+# Long context, huge potential but risky.
+SCORING_TRANSFORMER = {
+    'TP': 150,
+    'TN': 1,
+    'FP': 110,
+    'FN': 10,
+    'PRECISION': 50
+}
+
+# P3.0 Specific Weights (For High Multiplies)
 PROFIT_SCORING_WEIGHTS_P3 = {
     'TP': 400,  # HUGE Reward for catching a 3.00x
     'TN': 1,
-    'FP': 150,  # Strict but less paralyzing (was 200)
-    'FN': 50,    # Standard miss penalty
+    'FP': 100,  # Reduced from 150 to 100 to encourage catching rare events
+    'FN': 50,   # Standard miss penalty
     'PRECISION': 100
 }

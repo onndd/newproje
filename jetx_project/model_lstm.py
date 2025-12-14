@@ -72,13 +72,13 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     
     # Define Helper for Threshold Search
     from sklearn.metrics import confusion_matrix, classification_report
-    from .config import PROFIT_SCORING_WEIGHTS
+    from .config import PROFIT_SCORING_WEIGHTS, SCORING_LSTM
     def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
         """
         Finds the optimal threshold based on Profit Scoring.
         """
-        # Use provided scoring_params or default to PROFIT_SCORING_WEIGHTS
-        current_scoring_params = scoring_params if scoring_params is not None else PROFIT_SCORING_WEIGHTS
+        # Use provided scoring_params or default to SCORING_LSTM
+        current_scoring_params = scoring_params if scoring_params is not None else SCORING_LSTM
             
         best_thresh = 0.5
         best_score = -float('inf')
