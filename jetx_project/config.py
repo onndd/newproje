@@ -118,17 +118,17 @@ PROFIT_SCORING_WEIGHTS = {
 SCORING_CATBOOST = {
     'TP': 100,
     'TN': 1,
-    'FP': 120, # Moderate penalty to encourage taking calculated risks
+    'FP': 140, # Moderate penalty to encourage taking calculated risks
     'FN': 20,  # Slightly higher FOMO penalty to prevent over-silence
-    'PRECISION': 100 # High precision bonus
+    'PRECISION': 75 # High precision bonus
 }
 
 # 2. LSTM (Model C - The Pattern Seeker)
 # Deep learning can be noisy, allow slightly more leeway but reward catching trends.
 SCORING_LSTM = {
-    'TP': 150, # Higher reward for catching complex time-series patterns
+    'TP': 90, # Higher reward for catching complex time-series patterns
     'TN': 1,
-    'FP': 100, # Lower penalty than CatBoost (DL needs room to breathe)
+    'FP': 120, # Lower penalty than CatBoost (DL needs room to breathe)
     'FN': 10,
     'PRECISION': 50
 }
@@ -140,7 +140,7 @@ SCORING_LIGHTGBM = {
     'TN': 1,
     'FP': 130, # Stricter penalty to curb LightGBM's tendency to over-predict
     'FN': 10,
-    'PRECISION': 80
+    'PRECISION': 65
 }
 
 # 4. MLP (Model E - The Neural Net)
@@ -160,15 +160,15 @@ SCORING_MEMORY = {
     'TN': 1,
     'FP': 200, # Very strict! Memory should only speak if it REMEMBERS correctly.
     'FN': 0,   # No penalty for silence (it's okay to not strictly match)
-    'PRECISION': 100
+    'PRECISION': 65
 }
 
 # 6. TRANSFORMER (Model F - The Visionary)
 # Long context, huge potential but risky.
 SCORING_TRANSFORMER = {
-    'TP': 150,
+    'TP': 95,
     'TN': 1,
-    'FP': 110,
+    'FP': 125,
     'FN': 10,
     'PRECISION': 50
 }
