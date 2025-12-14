@@ -161,7 +161,6 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
                callbacks=[lgb.early_stopping(100)])
                
     # Detailed Reporting with Dynamic Thresholding
-    from sklearn.metrics import confusion_matrix
     
     # P1.5 Report
     print("\n--- LightGBM P1.5 Report ---")
@@ -169,7 +168,6 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
     best_thresh_p15, best_score_p15 = find_best_threshold(y_p15_val, preds_p15_proba, "LightGBM P1.5", scoring_params=scoring_params_p15)
     
     # Use best threshold for reporting (Not detailed_evaluation call anymore)
-    from sklearn.metrics import classification_report
     preds_p15 = (preds_p15_proba > best_thresh_p15).astype(int)
     cm_p15 = confusion_matrix(y_p15_val, preds_p15)
     print(f"Confusion Matrix (P1.5 @ {best_thresh_p15:.2f}):\n{cm_p15}")
