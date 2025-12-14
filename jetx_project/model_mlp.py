@@ -38,6 +38,12 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     
     print(f"MLP Input Features: {len(feature_cols)} (Raw Lags + HMM Only)")
     
+    # Handle NaNs for MLP
+    from sklearn.impute import SimpleImputer
+    imputer = SimpleImputer(strategy='mean')
+    X_imputed = imputer.fit_transform(X_train_filtered)
+    X_train_filtered = pd.DataFrame(X_imputed, columns=X_train_filtered.columns, index=X_train_filtered.index)
+    
     # Split
     split_idx = int(len(X_train_filtered) * 0.85)
     X_t, X_val = X_train_filtered.iloc[:split_idx], X_train_filtered.iloc[split_idx:]

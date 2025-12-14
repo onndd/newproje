@@ -186,6 +186,19 @@ def optimize_mlp(X, y, n_trials=20, scoring_params=None, timeout=300):
     """
     print(f"--- Starting MLP Optimization ({n_trials} trials) ---")
     
+    # Handle NaNs for MLP (sklearn requires clean input)
+    from sklearn.impute import SimpleImputer
+    import pandas as pd
+    
+    if isinstance(X, pd.DataFrame):
+        imputer = SimpleImputer(strategy='mean')
+        X_imputed = imputer.fit_transform(X)
+        X = pd.DataFrame(X_imputed, columns=X.columns, index=X.index)
+    else:
+        # Fallback for numpy arrays
+        imputer = SimpleImputer(strategy='mean')
+        X = imputer.fit_transform(X)
+
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, shuffle=False)
     
     def objective(trial):
