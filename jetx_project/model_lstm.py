@@ -167,7 +167,8 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
         # P3.0 Training (Optional or separate loop? Do both)
         # Re-use X, just change Y
         model_cv_p3 = build_lstm_model(seq_length)
-        model_cv_p3.compile(optimizer=opt, loss='binary_crossentropy', metrics=['accuracy'])
+        opt_p3 = tf.keras.optimizers.Adam(learning_rate=0.001) # New optimizer instance
+        model_cv_p3.compile(optimizer=opt_p3, loss='binary_crossentropy', metrics=['accuracy'])
         model_cv_p3.fit(X_t_cv, y_p3_t_cv, validation_data=(X_v_cv, y_p3_v_cv),
                        epochs=5, batch_size=batch_size, verbose=0,
                        callbacks=[EarlyStopping(monitor='val_loss', patience=2)])
