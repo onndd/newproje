@@ -11,7 +11,7 @@ from tensorflow.keras.models import Sequential
 from tensorflow.keras.layers import LSTM, Dense, Dropout, BatchNormalization
 from tensorflow.keras.callbacks import EarlyStopping
 
-def calculate_profit_score(y_true, y_pred):
+def calculate_profit_score(y_true, y_pred, scoring_params=None):
     """
     Calculates a custom score based on estimated profit.
     """
@@ -253,7 +253,7 @@ def optimize_mlp(X, y, n_trials=20, scoring_params=None, timeout=300):
         clf.fit(X_t_bal, y_t_bal)
         
         preds = clf.predict(X_val)
-        return calculate_profit_score(y_val, preds)
+        return calculate_profit_score(y_val, preds, scoring_params=scoring_params)
 
     study = optuna.create_study(direction='maximize')
     study.optimize(objective, n_trials=n_trials, timeout=timeout)

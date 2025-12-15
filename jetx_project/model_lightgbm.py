@@ -144,11 +144,15 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
         cv_X_train, cv_X_val = X_train.iloc[train_idx], X_train.iloc[val_idx]
         cv_y_train, cv_y_val = y_p3_train[train_idx], y_p3_train[val_idx]
         
+        # Apply Feature Selection to CV
+        cv_X_train_sel = cv_X_train[top_20_features]
+        cv_X_val_sel = cv_X_val[top_20_features]
+        
         cv_model = lgb.LGBMClassifier(**params_3)
-        cv_model.fit(cv_X_train, cv_y_train, eval_set=[(cv_X_val, cv_y_val)], eval_metric='logloss', 
+        cv_model.fit(cv_X_train_sel, cv_y_train, eval_set=[(cv_X_val_sel, cv_y_val)], eval_metric='logloss', 
                      callbacks=[lgb.early_stopping(100, verbose=False)])
         
-        probs = cv_model.predict_proba(cv_X_val)[:, 1]
+        probs = cv_model.predict_proba(cv_X_val_sel)[:, 1]
         _, score = find_best_threshold(cv_y_val, probs, f"P3.0 Fold {fold+1}", verbose=False)
         cv_scores_p3.append(score)
         print(f"  Fold {fold+1} Profit Score: {score:.2f}")
@@ -157,14 +161,14 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
     # --------------------------------
 
     clf_p3 = lgb.LGBMClassifier(**params_3)
-    clf_p3.fit(X_t, y_p3_t, eval_set=[(X_val, y_p3_val)], eval_metric='logloss',
+    clf_p3.fit(X_t_sel, y_p3_t, eval_set=[(X_val_sel, y_p3_val)], eval_metric='logloss',
                callbacks=[lgb.early_stopping(100)])
                
     # Detailed Reporting with Dynamic Thresholding
     
     # P1.5 Report
     print("\n--- LightGBM P1.5 Report ---")
-    preds_p15_proba = clf_p15.predict_proba(X_val)[:, 1]
+    preds_p15_proba = clf_p15.predict_proba(X_val_sel)[:, 1]
     best_thresh_p15, best_score_p15 = find_best_threshold(y_p15_val, preds_p15_proba, "LightGBM P1.5", scoring_params=scoring_params_p15)
     
     # Use best threshold for reporting (Not detailed_evaluation call anymore)
@@ -175,7 +179,7 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
 
     # P3.0 Report
     print("\n--- LightGBM P3.0 Report ---")
-    preds_p3_proba = clf_p3.predict_proba(X_val)[:, 1]
+    preds_p3_proba = clf_p3.predict_proba(X_val_sel)[:, 1]
     best_thresh_p3, best_score_p3 = find_best_threshold(y_p3_val, preds_p3_proba, "LightGBM P3.0", scoring_params=scoring_params_p3)
     
     preds_p3 = (preds_p3_proba > best_thresh_p3).astype(int)
@@ -183,7 +187,7 @@ def train_model_lightgbm(X_train, y_p15_train, y_p3_train, params_p15=None, para
     print(f"Confusion Matrix (P3.0 @ {best_thresh_p3:.2f}):\n{cm_p3}")
     detailed_evaluation(y_p3_val, preds_p3_proba, "P3.0", threshold=best_thresh_p3)
                
-    return clf_p15, clf_p3
+    return clf_p15, clf_p3, top_20_features
 
 def save_lightgbm_models(model_p15, model_p3, output_dir='.'):
     import joblib
