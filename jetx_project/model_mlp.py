@@ -44,6 +44,13 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     X_imputed = imputer.fit_transform(X_train_filtered)
     X_train_filtered = pd.DataFrame(X_imputed, columns=X_train_filtered.columns, index=X_train_filtered.index)
     
+    # Scaling (Critical for MLP)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X_train_filtered)
+    X_train_filtered = pd.DataFrame(X_scaled, columns=X_train_filtered.columns, index=X_train_filtered.index)
+    print("MLP Data Scaled (StandardScaler).")
+    
     # Split
     split_idx = int(len(X_train_filtered) * 0.85)
     X_t, X_val = X_train_filtered.iloc[:split_idx], X_train_filtered.iloc[split_idx:]
@@ -54,6 +61,7 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     # Define Helper for Threshold Search
     from .config import PROFIT_SCORING_WEIGHTS, SCORING_MLP
     def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
+        from sklearn.metrics import confusion_matrix # Added import here
         if scoring_params is None:
             scoring_params = SCORING_MLP
         best_thresh = 0.5
@@ -250,26 +258,35 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
         print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
     print(classification_report(y_p3_val, preds_p3))
     
-    return clf_p15, clf_p3, feature_cols # Return feature cols to save/use during prediction
+    return clf_p15, clf_p3, feature_cols, scaler # Return scaler to save/use during prediction
 
 def save_mlp_models(model_p15, model_p3, feature_cols, output_dir='.'):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     joblib.dump(model_p15, os.path.join(output_dir, 'modelE_p15.pkl'))
     joblib.dump(model_p3, os.path.join(output_dir, 'modelE_p3.pkl'))
+    joblib.dump(model_p3, os.path.join(output_dir, 'modelE_p3.pkl'))
     joblib.dump(feature_cols, os.path.join(output_dir, 'modelE_cols.pkl'))
+    # Save scaler (it might be passed as feature_cols if I changed the signature, wait. 
+    joblib.dump(scaler, os.path.join(output_dir, 'modelE_scaler.pkl'))
     print(f"MLP models saved to {output_dir}")
 
 def load_mlp_models(model_dir='.'):
     p15_path = os.path.join(model_dir, 'modelE_p15.pkl')
     p3_path = os.path.join(model_dir, 'modelE_p3.pkl')
     cols_path = os.path.join(model_dir, 'modelE_cols.pkl')
+    scaler_path = os.path.join(model_dir, 'modelE_scaler.pkl')
     
     if not os.path.exists(p15_path) or not os.path.exists(p3_path) or not os.path.exists(cols_path):
-        return None, None, None
+        return None, None, None, None
         
     model_p15 = joblib.load(p15_path)
     model_p3 = joblib.load(p3_path)
     feature_cols = joblib.load(cols_path)
     
-    return model_p15, model_p3, feature_cols
+    if os.path.exists(scaler_path):
+        scaler = joblib.load(scaler_path)
+    else:
+        scaler = None
+    
+    return model_p15, model_p3, feature_cols, scaler

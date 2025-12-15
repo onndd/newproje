@@ -94,7 +94,10 @@ def build_transformer_model(seq_length, num_heads=4, key_dim=32, ff_dim=64):
     loss_p15 = BinaryFocalLoss(gamma=2.0, alpha=0.75) # Alpha > 0.5 to focus on positive (minority) class
     loss_p3 = BinaryFocalLoss(gamma=2.0, alpha=0.85) # Higher alpha for P3 (more imbalanced)
     
-    model.compile(optimizer='adam', 
+    # Surgical Fix: Lower Learning Rate to 0.0001 to prevent Mode Collapse (Always Predicting 1)
+    optimizer = tf.keras.optimizers.Adam(learning_rate=0.0001)
+
+    model.compile(optimizer=optimizer, 
                   loss=[loss_p15, loss_p3],
                   metrics=['accuracy', 'accuracy'])
     return model
@@ -197,7 +200,7 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     
     print("Computed sample weights for Transformer multi-output training.")
     
-    callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
+    callbacks = [EarlyStopping(monitor='val_loss', patience=50, restore_best_weights=True)]
     
     # Define Metrics
     metrics = ['accuracy', tf.keras.metrics.Precision(name='precision'), tf.keras.metrics.Recall(name='recall')]

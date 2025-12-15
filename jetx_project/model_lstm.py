@@ -112,6 +112,35 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     n_total = len(values)
     # Use standard 85/15 for final model
     final_split = int(n_total * 0.85)
+
+    # --- Manual Class Weight Calculation (Surgical Fix) ---
+    from sklearn.utils.class_weight import compute_class_weight
+    
+    # Calculate for P1.5 (Threshold 1.5)
+    y_p15_all = (values >= 1.5).astype(int)
+    # Calculate weights based on TRAIN portion only to avoid leakage
+    y_p15_train_calc = y_p15_all[:final_split]
+    classes_p15 = np.unique(y_p15_train_calc)
+    weights_p15 = compute_class_weight(class_weight='balanced', classes=classes_p15, y=y_p15_train_calc)
+    class_weights_p15 = dict(zip(classes_p15, weights_p15))
+    
+    # INFLATE
+    if 1 in class_weights_p15:
+        class_weights_p15[1] = class_weights_p15[1] * 2.0
+        print(f"LSTM P1.5 Surgical Fix: Inflated Class 1 weight to {class_weights_p15[1]:.4f}")
+
+    # Calculate for P3.0 (Threshold 3.0)
+    y_p3_all = (values >= 3.0).astype(int)
+    y_p3_train_calc = y_p3_all[:final_split]
+    classes_p3 = np.unique(y_p3_train_calc)
+    weights_p3 = compute_class_weight(class_weight='balanced', classes=classes_p3, y=y_p3_train_calc)
+    class_weights_p3 = dict(zip(classes_p3, weights_p3))
+    
+    # INFLATE
+    if 1 in class_weights_p3:
+        class_weights_p3[1] = class_weights_p3[1] * 2.0
+        print(f"LSTM P3.0 Surgical Fix: Inflated Class 1 weight to {class_weights_p3[1]:.4f}")
+    
     
     # --- ROLLING WINDOW CV ---
     print("\n[CV] Running 3-Fold Rolling Window CV for LSTM (Strict Scaler Isolation)...")
@@ -239,9 +268,10 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     optimizer = tf.keras.optimizers.Adam(learning_rate=p15_args['learning_rate'])
     model_p15.compile(optimizer=optimizer, loss=BinaryFocalLoss(gamma=2.0, alpha=0.25), metrics=metrics)
     
-    callbacks = [EarlyStopping(monitor='val_loss', patience=5, restore_best_weights=True)]
+    callbacks = [EarlyStopping(monitor='val_loss', patience=50, restore_best_weights=True)]
     model_p15.fit(X_train, y_p15_train, validation_data=(X_val, y_p15_val), 
-                  epochs=p15_args['epochs'], batch_size=p15_args['batch_size'], verbose=1, callbacks=callbacks)
+                  epochs=p15_args['epochs'], batch_size=p15_args['batch_size'], verbose=1, 
+                  class_weight=class_weights_p15, callbacks=callbacks)
 
     # Detailed Reporting P1.5
     from sklearn.metrics import confusion_matrix, classification_report
@@ -274,7 +304,8 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     model_p3.compile(optimizer=opt_3, loss=BinaryFocalLoss(gamma=2.0, alpha=0.25), metrics=metrics)
     
     model_p3.fit(X_train, y_p3_train, validation_data=(X_val, y_p3_val), 
-                  epochs=p3_args['epochs'], batch_size=p3_args['batch_size'], verbose=1, callbacks=callbacks)
+                  epochs=p3_args['epochs'], batch_size=p3_args['batch_size'], verbose=1, 
+                  class_weight=class_weights_p3, callbacks=callbacks)
 
     # Detailed Reporting P3.0
     preds_p3_prob = model_p3.predict(X_val)

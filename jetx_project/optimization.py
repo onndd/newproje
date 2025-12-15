@@ -216,6 +216,13 @@ def optimize_mlp(X, y, n_trials=20, scoring_params=None, timeout=300):
         imputer = SimpleImputer(strategy='mean')
         X = imputer.fit_transform(X)
 
+    # Scaling Logic (StandardScaler)
+    from sklearn.preprocessing import StandardScaler
+    scaler = StandardScaler()
+    X_scaled = scaler.fit_transform(X)
+    X = pd.DataFrame(X_scaled, columns=X.columns if hasattr(X, 'columns') else None)
+    
+
     X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.2, shuffle=False)
     
     def objective(trial):
@@ -340,6 +347,12 @@ def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=10, scor
     except Exception as e:
         print(f"Warning: Could not compute class weights: {e}")
         class_weights_dict = None
+
+    # Surgical Fix: Manually inflate positive class weight if it exists
+    if class_weights_dict is not None and 1 in class_weights_dict:
+        original_weight = class_weights_dict[1]
+        class_weights_dict[1] = original_weight * 2.0
+        print(f"LSTM Surgical Fix: Inflated Class 1 weight from {original_weight:.4f} to {class_weights_dict[1]:.4f}")
         
     def objective(trial):
         seq_len = X_train.shape[1]
