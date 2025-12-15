@@ -246,7 +246,7 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     # P1.5 Report
     print("\n--- MLP P1.5 Report ---")
     preds_p15_prob = clf_p15.predict_proba(X_val)[:, 1]
-    best_thresh_p15, _ = find_best_threshold(y_p15_val, preds_p15_prob, "MLP P1.5", scoring_params=scoring_params)
+    best_thresh_p15, _ = find_best_threshold(y_p15_val, preds_p15_prob, "MLP P1.5", scoring_params=scoring_params_p15)
     
     preds_p15 = (preds_p15_prob > best_thresh_p15).astype(int)
     cm_p15 = confusion_matrix(y_p15_val, preds_p15)
@@ -254,20 +254,31 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     if cm_p15.shape == (2, 2):
         tn, fp, fn, tp = cm_p15.ravel()
         print(f"Correctly Predicted >1.5x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
+        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
+    print(classification_report(y_p15_val, preds_p15))
+
+    # P3.0 Report
+    print("\n--- MLP P3.0 Report ---")
+    preds_p3_prob = clf_p3.predict_proba(X_val)[:, 1]
+    best_thresh_p3, _ = find_best_threshold(y_p3_val, preds_p3_prob, "MLP P3.0", scoring_params=scoring_params_p3)
+    
+    preds_p3 = (preds_p3_prob > best_thresh_p3).astype(int)
+    cm_p3 = confusion_matrix(y_p3_val, preds_p3)
+    print(f"Confusion Matrix (P3.0 @ {best_thresh_p3:.2f}):\n{cm_p3}")
+    if cm_p3.shape == (2, 2):
+        tn, fp, fn, tp = cm_p3.ravel()
         print(f"Correctly Predicted >3.0x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
         print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
     print(classification_report(y_p3_val, preds_p3))
     
     return clf_p15, clf_p3, feature_cols, scaler # Return scaler to save/use during prediction
 
-def save_mlp_models(model_p15, model_p3, feature_cols, output_dir='.'):
+def save_mlp_models(model_p15, model_p3, feature_cols, scaler, output_dir='.'):
     if not os.path.exists(output_dir):
         os.makedirs(output_dir)
     joblib.dump(model_p15, os.path.join(output_dir, 'modelE_p15.pkl'))
     joblib.dump(model_p3, os.path.join(output_dir, 'modelE_p3.pkl'))
-    joblib.dump(model_p3, os.path.join(output_dir, 'modelE_p3.pkl'))
     joblib.dump(feature_cols, os.path.join(output_dir, 'modelE_cols.pkl'))
-    # Save scaler (it might be passed as feature_cols if I changed the signature, wait. 
     joblib.dump(scaler, os.path.join(output_dir, 'modelE_scaler.pkl'))
     print(f"MLP models saved to {output_dir}")
 
