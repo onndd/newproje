@@ -116,11 +116,11 @@ PROFIT_SCORING_WEIGHTS = {
 # 1. CATBOOST (Model A - The Sniper)
 # Needs to be very precise but not paralyzed.
 SCORING_CATBOOST = {
-    'TP': 100,
+    'TP': 85,
     'TN': 1,
     'FP': 140, # Moderate penalty to encourage taking calculated risks
     'FN': 20,  # Slightly higher FOMO penalty to prevent over-silence
-    'PRECISION': 75 # High precision bonus
+    'PRECISION': 65 # High precision bonus
 }
 
 # 2. LSTM (Model C - The Pattern Seeker)
@@ -136,7 +136,7 @@ SCORING_LSTM = {
 # 3. LIGHTGBM (Model D - The Fast Learner)
 # Similar to CatBoost but often more aggressive.
 SCORING_LIGHTGBM = {
-    'TP': 100,
+    'TP': 90,
     'TN': 1,
     'FP': 130, # Stricter penalty to curb LightGBM's tendency to over-predict
     'FN': 10,
