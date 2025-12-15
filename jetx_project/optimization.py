@@ -325,6 +325,21 @@ def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=10, scor
         
         y_train = (y_train_real >= target_threshold).astype(int).flatten()
         y_val = (y_val_real >= target_threshold).astype(int).flatten()
+
+    # Calculate Class Weights
+    from sklearn.utils.class_weight import compute_class_weight
+    try:
+        classes = np.unique(y_train)
+        if len(classes) > 1:
+            weights = compute_class_weight(class_weight='balanced', classes=classes, y=y_train)
+            class_weights_dict = dict(zip(classes, weights))
+            print(f"LSTM Class Weights: {class_weights_dict}")
+        else:
+            class_weights_dict = None
+            print("LSTM Class Weights: None (Only 1 class found)")
+    except Exception as e:
+        print(f"Warning: Could not compute class weights: {e}")
+        class_weights_dict = None
         
     def objective(trial):
         seq_len = X_train.shape[1]
@@ -366,6 +381,7 @@ def optimize_lstm(input_data, arg2=None, arg3=None, arg4=None, n_trials=10, scor
             validation_data=(X_val, y_val),
             epochs=10, # Short epochs for optimization
             batch_size=batch_size,
+            class_weight=class_weights_dict,
             callbacks=[early_stop],
             verbose=0
         )
