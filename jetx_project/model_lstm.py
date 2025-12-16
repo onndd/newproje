@@ -9,30 +9,28 @@ from sklearn.preprocessing import MinMaxScaler
 import joblib
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
-def create_sequences(input_values, target_values, seq_length=200):
+def create_rolling_window_sequences(values, seq_length=200):
     """
-    Creates sequences for LSTM.
-    input_values: Scaled values for X
-    target_values: Raw values for y (to check >= 1.5)
+    Creates sequences for LSTM from a single stream of values.
+    Returns: X, y_p15, y_p3
     """
     X = []
     y_p15 = []
     y_p3 = []
-    y_val = []
     
-    # Ensure lengths match (they should if passed correctly)
-    min_len = min(len(input_values), len(target_values))
+    # Ensure we have enough data
+    if len(values) <= seq_length:
+        return np.array([]), np.array([]), np.array([])
     
-    for i in range(seq_length, min_len):
-        seq = input_values[i-seq_length:i]
+    for i in range(seq_length, len(values)):
+        seq = values[i-seq_length:i]
         X.append(seq)
         
-        target = target_values[i] # Use RAW value for target
-        y_val.append(target)
+        target = values[i] 
         y_p15.append(1 if target >= 1.5 else 0)
         y_p3.append(1 if target >= 3.0 else 0)
         
-    return np.array(X), np.array(y_p15), np.array(y_p3), np.array(y_val)
+    return np.array(X), np.array(y_p15), np.array(y_p3)
 
 def build_lstm_model(seq_length, units=128, dropout=0.2, dense_units=64):
     """
