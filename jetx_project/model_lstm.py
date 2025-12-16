@@ -171,8 +171,8 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
         val_scaled_expanded = scaler_cv.transform(val_log_expanded.reshape(-1, 1))
         
         # Sequence Generation
-        X_t_cv, y_p15_t_cv, y_p3_t_cv, _ = create_sequences(train_scaled, raw_train, seq_length)
-        X_v_cv, y_p15_v_cv, y_p3_v_cv, _ = create_sequences(val_scaled_expanded, raw_val_expanded, seq_length)
+        X_t_cv, y_p15_t_cv, y_p3_t_cv, _ = create_rolling_window_sequences(train_scaled, raw_train, seq_length)
+        X_v_cv, y_p15_v_cv, y_p3_v_cv, _ = create_rolling_window_sequences(val_scaled_expanded, raw_val_expanded, seq_length)
         
         if len(X_t_cv) < batch_size or len(X_v_cv) == 0:
             print(f"  Fold {fold+1}: Not enough data. Skipping.")
@@ -235,8 +235,8 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     
     # 3. Create Sequences Separately
     # Pass SCALED for X, and RAW for y
-    X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, raw_train, seq_length)
-    X_val, y_p15_val, y_p3_val, _ = create_sequences(val_scaled, val_context, seq_length)
+    X_train, y_p15_train, y_p3_train, _ = create_rolling_window_sequences(train_scaled, raw_train, seq_length)
+    X_val, y_p15_val, y_p3_val, _ = create_rolling_window_sequences(val_scaled, val_context, seq_length)
     
     # Reshape for LSTM
     X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
