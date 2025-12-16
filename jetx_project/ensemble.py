@@ -220,9 +220,9 @@ def predict_meta(model, scaler, meta_features):
     meta_features_scaled = scaler.transform(meta_features)
     return model.predict_proba(meta_features_scaled)[:, 1]
 
-def predict_meta_safe(model, scaler, meta_features, anomaly_model=None, current_window_values=None):
+def predict_meta_safe(model, scaler, meta_features, anomaly_model=None, current_window_values=None, crash_preds=None):
     """
-    Predicts using Meta-Learner with Circuit Breaker (Anomaly Detection).
+    Predicts using Meta-Learner with Circuit Breaker (Anomaly Detection) and Crash Guard (Veto).
     """
     # 1. Check Anomaly (Circuit Breaker)
     if anomaly_model is not None and current_window_values is not None:
@@ -232,5 +232,27 @@ def predict_meta_safe(model, scaler, meta_features, anomaly_model=None, current_
             # Return 0 probability to prevent betting
             return np.zeros(len(meta_features))
             
-    # 2. Normal Prediction
+    # 2. Crash Guard Veto
+    # If the Crash Model says "Safe Crash" (> 85%), we VETO the prediction.
+    if crash_preds is not None:
+        # Check if ANY prediction in the batch is unsafe (or handle vector-wise)
+        # We assume crash_preds matches length of meta_features
+        if len(crash_preds) != len(meta_features):
+             print(f"WARNING: Crash preds length mismatch ({len(crash_preds)} vs {len(meta_features)}). Skipping Veto.")
+        else:
+            # Vectorized Veto
+            # If crash_prob > 0.85, set meta_prob to 0
+            # We calculate normal preds first
+            raw_probs = predict_meta(model, scaler, meta_features)
+            
+            # Apply Veto
+            # mask: 1 if crash likely, 0 otherwise
+            veto_mask = (crash_preds > 0.85).astype(int)
+            if np.sum(veto_mask) > 0:
+                print(f"CRASH GUARD: Vetoed {np.sum(veto_mask)} bets due to high crash risk.")
+                
+            final_probs = raw_probs * (1 - veto_mask)
+            return final_probs
+            
+    # 3. Normal Prediction (if no veto)
     return predict_meta(model, scaler, meta_features)

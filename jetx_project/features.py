@@ -252,6 +252,47 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     is_crash = (values <= 1.10).astype(int)
     new_features['freq_crash_last_20'] = is_crash.rolling(20).sum().shift(1).fillna(0)
     
+    # 10. MAGIC FEATURES (Game Theory & Psychology)
+    
+    # A. Trap Detector (Consecutive Lows < 1.20)
+    # We want to know: "How many games in a row have been < 1.20?"
+    is_low_trap = (values < 1.20).astype(int)
+    # Vectorized Streak Calculation:
+    # 1. Identify where the 'is_low_trap' state changes
+    trap_change = is_low_trap.diff().ne(0).cumsum()
+    # 2. Group by these changes and count (cumcount)
+    # This gives a count starting from 0 for each group.
+    # We multiply by is_low_trap so that "High" streaks become 0.
+    trap_streak = is_low_trap.groupby(trap_change).cumcount() + 1
+    new_features['consecutive_lows'] = (trap_streak * is_low_trap).shift(1).fillna(0)
+
+    # B. Symmetry / Mirror Patterns (H-L-H or L-H-L)
+    # High = >= 2.0, Low = < 2.0
+    is_high_sym = (values >= 2.0).astype(int)
+    # Pattern: High(t-3), Low(t-2), High(t-1) -> Prediction for t
+    # We want to enable the model to see this "Sandwich".
+    # state_t_1 = is_high_sym.shift(1)
+    # state_t_2 = is_high_sym.shift(2)
+    # ...
+    # Instead of complex scores, we give raw pattern bits
+    new_features['pattern_h_l_h'] = ((is_high_sym.shift(3) == 1) & 
+                                     (is_high_sym.shift(2) == 0) & 
+                                     (is_high_sym.shift(1) == 1)).astype(int).fillna(0)
+    
+    new_features['pattern_l_h_l'] = ((is_high_sym.shift(3) == 0) & 
+                                     (is_high_sym.shift(2) == 1) & 
+                                     (is_high_sym.shift(1) == 0)).astype(int).fillna(0)
+                                     
+    # C. Advanced Cooldown Index (RTP Tracking)
+    # "The house always wins". If RTP (Return to Player) of last 50 games is high (> 1.0), 
+    # the system might enter "Collection Mode".
+    # Payout Ratio approximation: Sum(Values) / 50 vs Theoretical Expected (e.g., 0.97 * 50?)
+    # Simply: Rolling Mean of Values
+    new_features['rtp_last_50'] = values.rolling(50).mean().shift(1).fillna(1.0)
+    
+    # "Volatile Cooldown": Ratio of High wins (>=10x) in last 50 games
+    new_features['high_density_50'] = (values >= 10.0).rolling(50).mean().shift(1).fillna(0)
+
     # Concatenate all new features at once (Optimized)
     df_new = pd.DataFrame(new_features, index=df.index)
     df = pd.concat([df, df_new], axis=1)

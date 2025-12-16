@@ -66,3 +66,23 @@ def get_values_array(df):
     Returns the 'value' column as a numpy array.
     """
     return df['value'].values
+
+def add_target_columns(df):
+    """
+    Adds target columns for training:
+    - target_p15: 1 if value >= 1.50
+    - target_p3: 1 if value >= 3.00
+    - target_crash: 1 if value <= 1.20 (The Danger Zone)
+    """
+    df = df.copy()
+    vals = df['value']
+    
+    df['target_p15'] = (vals >= 1.50).astype(int)
+    df['target_p3'] = (vals >= 3.00).astype(int)
+    
+    # CRASH DETECTOR TARGET
+    # We define 'Crash' as an immediate bust <= 1.20
+    # This is what the Guard Model will try to predict.
+    df['target_crash'] = (vals <= 1.20).astype(int)
+    
+    return df
