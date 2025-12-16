@@ -47,9 +47,9 @@ def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params
     best_thresh = 0.5
     best_score = -float('inf')
     
-    # Coarse scan for speed during optimization (0.50 to 0.95 step 0.05)
-    # Fine-tuning happens in final training
-    thresholds = np.arange(0.05, 1.0, 0.05)
+    # Updated Strategy: Enforce stricter confidence (min 0.60) as requested by User
+    # Scan from 0.60 to 0.95 to find the best high-confidence threshold
+    thresholds = np.arange(0.60, 0.96, 0.02)
     
     for thresh in thresholds:
         preds = (y_prob > thresh).astype(int)
