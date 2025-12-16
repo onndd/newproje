@@ -71,35 +71,8 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     # Define Helper for Threshold Search
     from sklearn.metrics import confusion_matrix, classification_report
     from .config import PROFIT_SCORING_WEIGHTS, SCORING_LSTM
-    def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
-        """
-        Finds the optimal threshold based on Profit Scoring.
-        """
-        # Use provided scoring_params or default to SCORING_LSTM
-        current_scoring_params = scoring_params if scoring_params is not None else SCORING_LSTM
-            
-        best_thresh = 0.5
-        best_score = -float('inf')
-        thresholds = np.arange(0.50, 0.99, 0.01)
-        
-        if verbose:
-            print(f"\nScanning Thresholds for {model_name}...")
-            
-        for thresh in thresholds:
-            preds = (y_prob > thresh).astype(int)
-            tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            score = (tp * current_scoring_params['TP']) - \
-                    (fp * current_scoring_params['FP']) + \
-                    (tn * current_scoring_params['TN']) - \
-                    (fn * current_scoring_params['FN'])
-            
-            if score > best_score:
-                best_score = score
-                best_thresh = thresh
-        
-        if verbose:
-            print(f"Best Threshold for {model_name}: {best_thresh:.2f} (Score: {best_score})")
-        return best_thresh, best_score
+    # Use centralized logic from optimization.py
+    from .optimization import find_best_threshold
 
     # Default values for seq_length, epochs, batch_size if not in params
     seq_length = params_p15.get('seq_length', 200) if params_p15 else 200

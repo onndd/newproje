@@ -60,32 +60,8 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     
     # Define Helper for Threshold Search
     from .config import PROFIT_SCORING_WEIGHTS, SCORING_MLP
-    def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
-        from sklearn.metrics import confusion_matrix # Added import here
-        if scoring_params is None:
-            scoring_params = SCORING_MLP
-        best_thresh = 0.5
-        best_score = -float('inf')
-        thresholds = np.arange(0.50, 0.99, 0.01)
-        
-        if verbose:
-            print(f"\nScanning Thresholds for {model_name}...")
-            
-        for thresh in thresholds:
-            preds = (y_prob > thresh).astype(int)
-            tn, fp, fn, tp = confusion_matrix(y_true, preds).ravel()
-            score = (tp * scoring_params['TP']) - \
-                    (fp * scoring_params['FP']) + \
-                    (tn * scoring_params['TN']) - \
-                    (fn * scoring_params['FN'])
-            
-            if score > best_score:
-                best_score = score
-                best_thresh = thresh
-        
-        if verbose:
-            print(f"Best Threshold for {model_name}: {best_thresh:.2f} (Score: {best_score})")
-        return best_thresh, best_score
+    # Use centralized logic from optimization.py
+    from .optimization import find_best_threshold
 
     # Compute Sample Weights for Class Balancing
     from sklearn.utils.class_weight import compute_sample_weight

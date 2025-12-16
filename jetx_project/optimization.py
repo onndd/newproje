@@ -36,9 +36,10 @@ def calculate_profit_score(y_true, y_pred, scoring_params=None):
             
     return score
 
-def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None):
+def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params=None, min_threshold=0.60):
     """
     Finds the optimal threshold based on Profit Scoring.
+    Allows for a custom minimum threshold (default 0.60).
     """
     if scoring_params is None:
         from .config import SCORING_CATBOOST
@@ -47,9 +48,9 @@ def find_best_threshold(y_true, y_prob, model_name, verbose=True, scoring_params
     best_thresh = 0.5
     best_score = -float('inf')
     
-    # Updated Strategy: Enforce stricter confidence (min 0.60) as requested by User
-    # Scan from 0.60 to 0.95 to find the best high-confidence threshold
-    thresholds = np.arange(0.60, 0.96, 0.02)
+    # Updated Strategy: Enforce stricter confidence (min_threshold)
+    # Scan from min_threshold to 0.99 to find the best high-confidence threshold
+    thresholds = np.arange(min_threshold, 0.99, 0.01)
     
     for thresh in thresholds:
         preds = (y_prob > thresh).astype(int)

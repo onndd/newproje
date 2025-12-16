@@ -107,87 +107,47 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     """
     Trains the Transformer model.
     """
-    # 1. Split Data (Chronological)
-    split_idx = int(len(values) * 0.85)
-    train_values = values[:split_idx]
-    val_values = values[split_idx:]
+    # 1. Sequence Generation (From RAW data to preserve targets)
+    from .model_lstm import create_rolling_window_sequences
+    X_all_raw, y_p15_all, y_p3_all = create_rolling_window_sequences(values, seq_length)
     
-    # 2. Scale (Log + MinMax)
-    train_values_log = np.log1p(train_values)
-    val_values_log = np.log1p(val_values)
+    # 2. Split
+    n_samples = len(X_all_raw)
+    split_idx = int(n_samples * 0.85)
     
+    X_train_raw = X_all_raw[:split_idx]
+    y_p15_train = y_p15_all[:split_idx]
+    y_p3_train = y_p3_all[:split_idx]
+    
+    X_val_raw = X_all_raw[split_idx:]
+    y_p15_val = y_p15_all[split_idx:]
+    y_p3_val = y_p3_all[split_idx:]
+    
+    # 3. Scale (Log + MinMax)
+    # Fit on TRAIN only
+    X_train_log = np.log1p(X_train_raw)
     scaler = MinMaxScaler(feature_range=(0, 1))
-    scaler.fit(train_values_log.reshape(-1, 1))
     
-    train_scaled = scaler.transform(train_values_log.reshape(-1, 1))
-    val_scaled = scaler.transform(val_values_log.reshape(-1, 1))
+    # Flatten for scaling: (Samples, Seq) -> (Samples*Seq, 1)
+    X_train_flat = X_train_log.reshape(-1, 1)
+    scaler.fit(X_train_flat)
     
-    # Validation Context
-    # Note: We append validation targets to context to allow autoregressive evaluation (Teacher Forcing).
-    # X_val[0] will use Context. 
-    # X_val[1] will use Context + Val[0]. 
-    # This is CAUSAL because at step T we know T-1.
-    context_values = train_values[-seq_length:]
+    X_train_scaled = scaler.transform(X_train_flat).reshape(X_train_raw.shape[0], seq_length, 1)
     
-    # CRITICAL FIX (LEAKAGE):
-    # Old: val_values_with_context = concat(context, val_values) -> create_sequences includes future?
-    # Actually, create_sequences(X, y) uses X[i : i+seq] to predict y[i+seq].
-    # So if X contains the *target itself* at the last position, it's a leak IF we are trying to predict that same index.
-    # To be strictly safe and clear:
-    # 1. We form a continuous stream: context + val_values
-    stream = np.concatenate([context_values, val_values])
-    stream_log = np.log1p(stream)
-    stream_scaled = scaler.transform(stream_log.reshape(-1, 1))
+    # Transform Val
+    X_val_log = np.log1p(X_val_raw)
+    X_val_flat = X_val_log.reshape(-1, 1)
+    X_val_scaled = scaler.transform(X_val_flat).reshape(X_val_raw.shape[0], seq_length, 1)
     
-    # 2. X, y generation
-    # We want to predict val_values[0], val_values[1]...
-    # To predict val_values[0], we need the previous `seq_length` items (which is `context_values`).
-    # `create_sequences` with `seq_length` does exactly this:
-    # It takes window [0..seq-1] to predict [seq].
-    # So if 'stream' starts with context (len=seq), then index 'seq' in stream is val_values[0].
-    # So create_sequences(stream, stream, seq_length) will produce:
-    # X[0] = stream[0:seq] (context), y[0] = stream[seq] (val_values[0]) -> CORRECT.
-    # X[1] = stream[1:seq+1] (context[1:]+val[0]), y[1] = val[1] -> CORRECT.
+    # Define Helper for Threshold Search
+    from .config import PROFIT_SCORING_WEIGHTS, SCORING_TRANSFORMER
+    # Use centralized logic from optimization.py
+    from .optimization import find_best_threshold
     
-    # So the logic was actually mathematically fine, BUT explicit separation ensures no offset error.
-    # We will pass the full stream.
+    # Reshape (already done in scaling, but keeping for clarity if needed for other models)
+    # X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
+    # X_val = X_val.reshape((X_val.shape[0], X_val.shape[1], 1))
     
-    from .model_lstm import create_sequences
-    X_train, y_p15_train, y_p3_train, _ = create_sequences(train_scaled, train_values, seq_length)
-    
-    # For validation, we use the stream but only take the parts that result in validation targets
-    X_val_all, y_p15_val_all, y_p3_val_all, _ = create_sequences(stream_scaled, stream, seq_length)
-    
-    # The 'stream' contains context + val.
-    # We only care about predictions for the 'val' part.
-    # The first prediction from creates_sequences on the stream will correspond to predicting index `seq_length` of the stream.
-    # Since stream = [context (len=seq), val (len=N)], index `seq_length` IS val[0].
-    # So X_val_all[0] predicts val[0].
-    # We just need to make sure we don't accidentally train on future val data if we were doing something else.
-    # But here we just use it for validation.
-    
-    # Audit Fix: Validation Isolation
-    # Ensure X_val and y_val correspond strictly to the validation period.
-    # X_val_all comes from prepare_transformer_data which usually splits by time.
-    # We trust X_val_all is the validation set.
-    # But just to be explicit and safe:
-    X_val = X_val_all
-    y_p15_val = y_p15_val_all
-    y_p3_val = y_p3_val_all
-    
-    # Check for overlap (Simple heuristic: indices?)
-    # Since we passed arrays, we can't check indices easily here.
-    # We rely on the prepare function being causal (it respects split_idx).
-    # However, to be extra safe per audit, we confirm we don't accidentally train on val.
-    # fit() uses X_train. validation_data uses X_val. This is safe provided X_train & X_val don't overlap.
-    # prepare_transformer_data implementation (external) MUST ensure non-overlap. 
-    # Here we just proceed using them correctly.
-    
-    # Reshape
-    X_train = X_train.reshape((X_train.shape[0], X_train.shape[1], 1))
-    X_val = X_val.reshape((X_val.shape[0], X_val.shape[1], 1))
-    
-    # 4. Train
     # 4. Train
     # Fix: Use sample_weight instead of class_weight for multi-output model support
     
