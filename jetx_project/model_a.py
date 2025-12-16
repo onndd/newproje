@@ -138,6 +138,10 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
         print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
     print(classification_report(y_p15_val, preds_p15))
     
+    # Enhanced Evaluation with Graphs
+    from .evaluation import detailed_evaluation
+    detailed_evaluation(y_p15_val, preds_p15_prob, "CatBoost P1.5", threshold=best_thresh_p15)
+    
     # Feature Importance Analysis
     print("\nTop 10 Features (P1.5):")
     feature_importance = model_p15.get_feature_importance()
@@ -213,6 +217,10 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
         print(f"Correctly Predicted >3.0x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
         print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
     print(classification_report(y_p3_val, preds_p3))
+    
+    # Enhanced Evaluation with Graphs
+    from .evaluation import detailed_evaluation
+    detailed_evaluation(y_p3_val, preds_p3_prob, "CatBoost P3.0", threshold=best_thresh_p3)
 
     # 3. Model X (Regressor)
     print("\n--- Training Model A (Regression) ---")

@@ -183,35 +183,36 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     )
               
     # Detailed Reporting
+    # Enhanced Reporting
     from sklearn.metrics import confusion_matrix, classification_report
+    from .evaluation import detailed_evaluation
     
     # Predict
-    preds = model.predict(X_val)
-    # Keras returns list of arrays [pred_p15, pred_p3]
-    preds_p15_prob = preds[0]
-    preds_p3_prob = preds[1]
+    preds = model.predict(X_val_scaled) # Predict on scaled validation data
+    preds_p15_prob = preds[0].flatten()
+    preds_p3_prob = preds[1].flatten()
     
     # P1.5 Report
     print("\n--- Transformer P1.5 Report ---")
-    preds_p15 = (preds_p15_prob > 0.5).astype(int)
-    cm_p15 = confusion_matrix(y_p15_val, preds_p15)
-    print(f"Confusion Matrix (P1.5):\n{cm_p15}")
-    if cm_p15.shape == (2, 2):
-        tn, fp, fn, tp = cm_p15.ravel()
-        print(f"Correctly Predicted >1.5x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
-        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
+    best_thresh_p15, best_score_p15 = find_best_threshold(y_p15_val, preds_p15_prob, "Transformer P1.5", scoring_params=SCORING_TRANSFORMER)
+    
+    preds_p15 = (preds_p15_prob > best_thresh_p15).astype(int)
+    print(f"Confusion Matrix (P1.5 @ {best_thresh_p15:.2f}):\n{confusion_matrix(y_p15_val, preds_p15)}")
     print(classification_report(y_p15_val, preds_p15))
-
+    
+    detailed_evaluation(y_p15_val, preds_p15_prob, "Transformer P1.5", threshold=best_thresh_p15)
+    
     # P3.0 Report
     print("\n--- Transformer P3.0 Report ---")
-    preds_p3 = (preds_p3_prob > 0.5).astype(int)
-    cm_p3 = confusion_matrix(y_p3_val, preds_p3)
-    print(f"Confusion Matrix (P3.0):\n{cm_p3}")
-    if cm_p3.shape == (2, 2):
-        tn, fp, fn, tp = cm_p3.ravel()
-        print(f"Correctly Predicted >3.0x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
-        print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
+    # Note: Use PROFIT_SCORING_WEIGHTS_P3 if defined, else default
+    from .config import PROFIT_SCORING_WEIGHTS_P3
+    best_thresh_p3, best_score_p3 = find_best_threshold(y_p3_val, preds_p3_prob, "Transformer P3.0", scoring_params=PROFIT_SCORING_WEIGHTS_P3)
+    
+    preds_p3 = (preds_p3_prob > best_thresh_p3).astype(int)
+    print(f"Confusion Matrix (P3.0 @ {best_thresh_p3:.2f}):\n{confusion_matrix(y_p3_val, preds_p3)}")
     print(classification_report(y_p3_val, preds_p3))
+    
+    detailed_evaluation(y_p3_val, preds_p3_prob, "Transformer P3.0", threshold=best_thresh_p3)
               
     return model, scaler
 

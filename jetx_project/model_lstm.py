@@ -276,6 +276,9 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
 
     # Detailed Reporting P1.5
     from sklearn.metrics import confusion_matrix, classification_report
+    # Enhanced Evaluation
+    from .evaluation import detailed_evaluation
+    
     preds_p15_prob = model_p15.predict(X_val)
     # Use helper defined at top
     best_thresh_p15, best_score_p15 = find_best_threshold(y_p15_val, preds_p15_prob, "LSTM P1.5", scoring_params=scoring_params_p15)
@@ -283,6 +286,8 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     preds_p15 = (preds_p15_prob >= best_thresh_p15).astype(int)
     print(f"Confusion Matrix (P1.5):\n{confusion_matrix(y_p15_val, preds_p15)}")
     print(classification_report(y_p15_val, preds_p15))
+    
+    detailed_evaluation(y_p15_val, preds_p15_prob, "LSTM P1.5", threshold=best_thresh_p15)
 
     # Model P3.0
     print("\n--- Training LSTM (P3.0) ---")
@@ -323,6 +328,8 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
         print(f"Correctly Predicted >3.0x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
         print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
     print(classification_report(y_p3_val, preds_p3))
+    
+    detailed_evaluation(y_p3_val, preds_p3_prob, "LSTM P3.0", threshold=best_thresh_p3)
                  
     return model_p15, model_p3, scaler
 

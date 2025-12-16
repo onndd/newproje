@@ -232,6 +232,10 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
         print(f"Correctly Predicted >1.5x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
         print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
     print(classification_report(y_p15_val, preds_p15))
+    
+    # Enhanced Evaluation
+    from .evaluation import detailed_evaluation
+    detailed_evaluation(y_p15_val, preds_p15_prob, "MLP P1.5", threshold=best_thresh_p15)
 
     # P3.0 Report
     print("\n--- MLP P3.0 Report ---")
@@ -246,6 +250,8 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
         print(f"Correctly Predicted >3.0x: {tp}/{tp+fn} (Recall: {tp/(tp+fn):.2%})")
         print(f"False Alarms: {fp}/{tp+fp} (Precision: {tp/(tp+fp) if (tp+fp)>0 else 0:.2%})")
     print(classification_report(y_p3_val, preds_p3))
+    
+    detailed_evaluation(y_p3_val, preds_p3_prob, "MLP P3.0", threshold=best_thresh_p3)
     
     return clf_p15, clf_p3, feature_cols, scaler # Return scaler to save/use during prediction
 
