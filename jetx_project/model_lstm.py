@@ -108,10 +108,40 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     epochs = params_p15.get('epochs', 15) if params_p15 else 15
     batch_size = params_p15.get('batch_size', 128) if params_p15 else 128
 
-    # 1. Strict Chronological Split (Raw Data)
-    n_total = len(values)
-    # Use standard 85/15 for final model
-    final_split = int(n_total * 0.85)
+    # 1. Sequence Generation (From RAW data to preserve targets)
+    X, y_p15_all, y_p3_all = create_rolling_window_sequences(values, seq_length)
+    
+    # 2. Split Size Calculation
+    # X has fewer samples than 'values' due to seq_length padding
+    n_samples = len(X)
+    final_split = int(n_samples * 0.85)
+    
+    # 3. ROBUST SCALING (Fit on Train, Apply to All)
+    from sklearn.preprocessing import RobustScaler
+    scaler = RobustScaler()
+    
+    # Reshape X for scaling: (Samples, Seq_Len, Features) -> (Samples*Seq_Len, Features)
+    X_train_raw = X[:final_split]
+    X_train_flat = X_train_raw.reshape(-1, 1)
+    
+    print("Fitting RobustScaler on LSTM Training Data...")
+    scaler.fit(X_train_flat)
+    
+    # Transform full dataset
+    X_flat = X.reshape(-1, 1)
+    X_scaled_flat = scaler.transform(X_flat)
+    X_scaled = X_scaled_flat.reshape(X.shape)
+    
+    print(f"LSTM Data Scaled. Mean: {np.mean(X_scaled):.2f}, Std: {np.std(X_scaled):.2f}")
+    
+    # 4. Prepare Final Train/Val Sets
+    X_train = X_scaled[:final_split]
+    y_p15_train = y_p15_all[:final_split]
+    y_p3_train = y_p3_all[:final_split]
+    
+    X_val = X_scaled[final_split:]
+    y_p15_val = y_p15_all[final_split:]
+    y_p3_val = y_p3_all[final_split:]
 
     # --- Manual Class Weight Calculation (Surgical Fix) ---
     from sklearn.utils.class_weight import compute_class_weight
