@@ -1,8 +1,8 @@
 
 # Avci Project Configuration
 
-# Window sizes for feature extraction (Simplified for speed)
-WINDOWS = [10, 50, 100]
+# Window sizes for feature extraction (Expanded for rare signals)
+WINDOWS = [25, 50, 100, 150, 200, 300]
 
 # Scoring Weights for various targets
 # Note: For High Multipliers (5x, 10x), loss is minimal (1 unit) compared to huge gain.
