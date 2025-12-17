@@ -140,7 +140,7 @@ SCORING_LSTM = {
 SCORING_LIGHTGBM = {
     'TP': 90,
     'TN': 1,
-    'FP': 155, # Increased penalty per user request
+    'FP': 170, # Increased penalty per user request (was 155)
     'FN': 10,
     'PRECISION': 75 # Increased bonus
 }
@@ -185,7 +185,7 @@ SCORING_CATBOOST_P3 = {
 
 # 2. LightGBM P3.0
 SCORING_LIGHTGBM_P3 = {
-    'TP': 400, 'TN': 1, 'FP': 135, 'FN': 50, 'PRECISION': 100
+    'TP': 400, 'TN': 1, 'FP': 143, 'FN': 50, 'PRECISION': 100
 }
 
 # 3. MLP P3.0
