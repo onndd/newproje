@@ -9,10 +9,11 @@ from sklearn.preprocessing import MinMaxScaler
 import joblib
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 
-def create_rolling_window_sequences(values, seq_length=200):
+def create_rolling_window_sequences(values, seq_length=200, raw_values=None):
     """
-    Creates sequences for LSTM from a single stream of values.
-    Returns: X, y_p15, y_p3
+    Creates sequences for LSTM.
+    If raw_values is provided, it is used for determining targets (p15, p3).
+    values is used for creating the sequence features X.
     """
     X = []
     y_p15 = []
@@ -22,11 +23,15 @@ def create_rolling_window_sequences(values, seq_length=200):
     if len(values) <= seq_length:
         return np.array([]), np.array([]), np.array([])
     
+    target_source = raw_values if raw_values is not None else values
+    
     for i in range(seq_length, len(values)):
         seq = values[i-seq_length:i]
         X.append(seq)
         
-        target = values[i] 
+        # Use target_source for the label (uncut/raw value)
+        # Note: raw_values should align with values index-wise
+        target = target_source[i] 
         y_p15.append(1 if target >= 1.5 else 0)
         y_p3.append(1 if target >= 3.0 else 0)
         
@@ -171,8 +176,9 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
         val_scaled_expanded = scaler_cv.transform(val_log_expanded.reshape(-1, 1))
         
         # Sequence Generation
-        X_t_cv, y_p15_t_cv, y_p3_t_cv, _ = create_rolling_window_sequences(train_scaled, raw_train, seq_length)
-        X_v_cv, y_p15_v_cv, y_p3_v_cv, _ = create_rolling_window_sequences(val_scaled_expanded, raw_val_expanded, seq_length)
+        # Sequence Generation
+        X_t_cv, y_p15_t_cv, y_p3_t_cv = create_rolling_window_sequences(train_scaled, seq_length=seq_length, raw_values=raw_train)
+        X_v_cv, y_p15_v_cv, y_p3_v_cv = create_rolling_window_sequences(val_scaled_expanded, seq_length=seq_length, raw_values=raw_val_expanded)
         
         if len(X_t_cv) < batch_size or len(X_v_cv) == 0:
             print(f"  Fold {fold+1}: Not enough data. Skipping.")
