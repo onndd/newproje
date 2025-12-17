@@ -60,10 +60,12 @@ def objective_lgbm(trial, X_train, y_train, X_val, y_val, scoring_params):
         preds = (preds_proba > thr).astype(int)
         tn, fp, fn, tp = confusion_matrix(y_val, preds).ravel()
         # Profit Score Calculation
+        precision_score = tp / (tp + fp + 1e-9)
         score = (tp * scoring_params['TP']) + \
                 (tn * scoring_params['TN']) - \
                 (fp * scoring_params['FP']) - \
-                (fn * scoring_params['FN'])
+                (fn * scoring_params['FN']) + \
+                (precision_score * scoring_params.get('PRECISION', 0))
         if score > best_score:
             best_score = score
             
