@@ -4,10 +4,10 @@ import numpy as np
 import optuna
 import joblib
 import os
-from .config_avci import DB_PATH, TARGETS, SCORING_1_5, SCORING_2_0, SCORING_3_0, SCORING_5_0, SCORING_10_0, SCORING_20_0, SCORING_50_0, SCORING_100_0
-from .data_avci import load_data, add_targets
-from .features_avci import extract_features
-from .models_avci import train_lgbm, objective_lgbm
+from config_avci import DB_PATH, TARGETS, SCORING_1_5, SCORING_2_0, SCORING_3_0, SCORING_5_0, SCORING_10_0, SCORING_20_0, SCORING_50_0, SCORING_100_0
+from data_avci import load_data, add_targets
+from features_avci import extract_features
+from models_avci import train_lgbm, objective_lgbm
 
 def get_scoring_params(target):
     if target == 1.5: return SCORING_1_5
