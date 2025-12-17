@@ -27,7 +27,8 @@ def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
     
     params = {
         'objective': 'binary',
-        'metric': 'binary_logloss',
+        'objective': 'binary',
+        'metric': 'auc', # Changed to AUC to better monitor separation
         'verbosity': -1,
         'boosting_type': 'gbdt',
         'learning_rate': 0.05,
@@ -35,8 +36,8 @@ def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
         'feature_fraction': 0.8,
         'bagging_fraction': 0.8,
         'bagging_freq': 5,
-        'is_unbalance': True, # Enabled to fix "Lazy Guard" (0 Recall) issues due to 20% crash rate
-        # 'scale_pos_weight': 2.0 # Give more weight to detecting crashes if needed
+        # 'is_unbalance': True, # Replaced with manual heavy weighting
+        'scale_pos_weight': 5.0 # FORCE the model to pay 5x attention to Crashes
     }
     
     models = []
@@ -61,7 +62,7 @@ def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
         
         # Eval
         preds_proba = model.predict(X_val, num_iteration=model.best_iteration)
-        preds_bin = (preds_proba > 0.5).astype(int) # Standard threshold for init
+        preds_bin = (preds_proba > 0.30).astype(int) # Lowered threshold to wake up the guard
         
         prec = precision_score(y_val, preds_bin, zero_division=0)
         rec = recall_score(y_val, preds_bin, zero_division=0)
