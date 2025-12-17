@@ -60,14 +60,14 @@ def train_target(df, target, epochs=20):
     # Optuna
     print(f"Optimizing for {target}x (Trials: {epochs})...")
     study = optuna.create_study(direction='maximize')
-    study.optimize(lambda trial: objective_lgbm(trial, X_train, y_train, X_val, y_val, scoring), n_trials=epochs)
+    study.optimize(lambda trial: objective_lgbm(trial, X_train, y_train, X_val, y_val, scoring, use_gpu=True), n_trials=epochs)
     
     print(f"Best Params: {study.best_params}")
     print(f"Best Profit Score: {study.best_value}")
     
     # Final Train
     best_params = study.best_params
-    best_params.update({'metric': 'binary_logloss', 'objective': 'binary', 'verbosity': -1})
+    best_params.update({'metric': 'binary_logloss', 'objective': 'binary', 'verbosity': -1, 'device': 'gpu'})
     
     model = train_lgbm(X_train, y_train, X_val, y_val, best_params)
     
