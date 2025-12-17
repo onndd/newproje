@@ -35,7 +35,7 @@ def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
         'feature_fraction': 0.8,
         'bagging_fraction': 0.8,
         'bagging_freq': 5,
-        'is_unbalance': False, # We might want to tune this manually or use scale_pos_weight
+        'is_unbalance': True, # Enabled to fix "Lazy Guard" (0 Recall) issues due to 20% crash rate
         # 'scale_pos_weight': 2.0 # Give more weight to detecting crashes if needed
     }
     
