@@ -160,6 +160,60 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     # 6. Long Streak (>=8) Analysis (Causal)
     # Fix: Use PREVIOUS game colors to prevent leakage.
     # At time t, we only know the color of t-1.
+    is_crash = (values <= 1.10).astype(int)
+    new_features['freq_crash_last_20'] = is_crash.rolling(20).sum().shift(1).fillna(0)
+    
+    # --- NEW ADVANCED FEATURES (Survival & Gambler's Fallacy) ---
+    
+    # 1. Survival Analysis: P(Reach 2.0 | Reached 1.5)
+    # Logic: Of the last 50 games that passed 1.50x, how many made it to 2.00x?
+    # If this drops, it means the algorithm is "cutting short".
+    reached_15 = (values >= 1.50).astype(float)
+    reached_20 = (values >= 2.00).astype(float)
+    
+    roll_15 = reached_15.rolling(50).sum().shift(1)
+    roll_20 = reached_20.rolling(50).sum().shift(1)
+    
+    # Safe Division
+    survival_rate = roll_20 / roll_15.replace(0, 1) # Avoid div/0
+    new_features['prob_reach_2_given_1_5'] = survival_rate.fillna(0.5) # Default to 50%
+
+    # 2. RTP Gap (House Debt): Gambler's Fallacy Math
+    # Expected Return per Game ~ 0.97x (Theoretical)
+    # Over 100 games, expected sum ~ 97.0
+    # If actual sum is 50.0, the House is "Hoarding" (Gap +47).
+    # If actual sum is 200.0, the House is "Bleeding" (Gap -103).
+    
+    expected_sum_100 = 97.0
+    realized_sum_100 = values.rolling(100).sum().shift(1).fillna(97.0)
+    
+    # Positive Deficit = House owes us money (Potential Win Wave)
+    new_features['rtp_deficit_100'] = expected_sum_100 - realized_sum_100
+    
+    # 3. Crash Density (Anti-Volatility)
+    # Instead of Standard Deviation, count how often we see < 1.10x (Instant Deaths)
+    # High Density = Danger Zone
+    new_features['density_critical_crash_20'] = (values <= 1.10).rolling(20).sum().shift(1).fillna(0)
+    
+    # 4. Binary Sequence Matching (Pattern Mining)
+    # Encode last 4 games as a binary integer (0-15)
+    # 1.50+ = 1, <1.50 = 0
+    bin_vals = (values >= 1.50).astype(int)
+    
+    # Weights for binary conversion: 8, 4, 2, 1
+    # Pattern at t is determined by t-4, t-3, t-2, t-1
+    # We use shift() to align correct history
+    p_code = (bin_vals.shift(4) * 8 + 
+              bin_vals.shift(3) * 4 + 
+              bin_vals.shift(2) * 2 + 
+              bin_vals.shift(1) * 1).fillna(0).astype(int)
+    
+    new_features['pattern_code_4'] = p_code
+    
+    # NOTE: Calculating "Historical Win Rate of this Pattern" in vectorized pandas without Lookahead is HARD.
+    # Instead, we give the model the 'pattern_code_4' as a Categorical Feature.
+    # CatBoost loves categorical features. We keep it as integer for now.
+    
     colors = (values >= 1.5).astype(int)
     colors_prev = colors.shift(1).fillna(0) # Default to 0 (Red) for start
     
@@ -219,77 +273,9 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     new_features['medium_win_streak'] = df.index - last_not_med_idx
     new_features['medium_win_streak'] = new_features['medium_win_streak'].fillna(0.0)
 
-    # 8. Teknik İndikatörler (DISABLED - Noise Reduction)
-    # delta = log_values.diff()
-    # gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    # loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    # rs = gain / loss
-    # new_features['rsi_14'] = (100 - (100 / (1 + rs))).shift(1).fillna(50)
-
-    # # Bollinger Bantları (20)
-    # sma_20 = log_values.rolling(window=20).mean()
-    # std_20 = log_values.rolling(window=20).std()
-    # upper_band = sma_20 + (std_20 * 2)
-    # lower_band = sma_20 - (std_20 * 2)
-    # percent_b = (log_values - lower_band) / (upper_band - lower_band)
-    # new_features['bb_percent_b'] = percent_b.shift(1).fillna(0.5)
-    # new_features['bb_width'] = (upper_band - lower_band).shift(1).fillna(0)
-
-    # # MACD (12,26,9)
-    # ema_12 = log_values.ewm(span=12, adjust=False).mean()
-    # ema_26 = log_values.ewm(span=26, adjust=False).mean()
-    # macd_line = ema_12 - ema_26
-    # signal_line = macd_line.ewm(span=9, adjust=False).mean()
-    # new_features['macd_hist'] = (macd_line - signal_line).shift(1).fillna(0)
-
-    # 9. Gelişmiş Frekans Özellikleri
-    is_over_2 = (values >= 2.00).astype(int)
-    new_features['freq_over_2_last_20'] = is_over_2.rolling(20).sum().shift(1).fillna(0)
-
-    is_over_10 = (values >= 10.00).astype(int)
-    new_features['freq_over_10_last_50'] = is_over_10.rolling(50).sum().shift(1).fillna(0)
-
-    is_crash = (values <= 1.10).astype(int)
-    new_features['freq_crash_last_20'] = is_crash.rolling(20).sum().shift(1).fillna(0)
-    
-    # 10. MAGIC FEATURES (Game Theory & Psychology)
-    
-    # A. Trap Detector (Consecutive Lows < 1.20)
-    # We want to know: "How many games in a row have been < 1.20?"
-    is_low_trap = (values < 1.20).astype(int)
-    # Vectorized Streak Calculation:
-    # 1. Identify where the 'is_low_trap' state changes
-    trap_change = is_low_trap.diff().ne(0).cumsum()
-    # 2. Group by these changes and count (cumcount)
-    # This gives a count starting from 0 for each group.
-    # We multiply by is_low_trap so that "High" streaks become 0.
-    trap_streak = is_low_trap.groupby(trap_change).cumcount() + 1
-    new_features['consecutive_lows'] = (trap_streak * is_low_trap).shift(1).fillna(0)
-
-    # B. Symmetry / Mirror Patterns (H-L-H or L-H-L)
-    # High = >= 2.0, Low = < 2.0
-    is_high_sym = (values >= 2.0).astype(int)
-    # Pattern: High(t-3), Low(t-2), High(t-1) -> Prediction for t
-    # We want to enable the model to see this "Sandwich".
-    # state_t_1 = is_high_sym.shift(1)
-    # state_t_2 = is_high_sym.shift(2)
-    # ...
-    # Instead of complex scores, we give raw pattern bits
-    new_features['pattern_h_l_h'] = ((is_high_sym.shift(3) == 1) & 
-                                     (is_high_sym.shift(2) == 0) & 
-                                     (is_high_sym.shift(1) == 1)).astype(int).fillna(0)
-    
-    new_features['pattern_l_h_l'] = ((is_high_sym.shift(3) == 0) & 
-                                     (is_high_sym.shift(2) == 1) & 
-                                     (is_high_sym.shift(1) == 0)).astype(int).fillna(0)
-                                     
-    # C. Advanced Cooldown Index (RTP Tracking)
-    # "The house always wins". If RTP (Return to Player) of last 50 games is high (> 1.0), 
-    # the system might enter "Collection Mode".
-    # Payout Ratio approximation: Sum(Values) / 50 vs Theoretical Expected (e.g., 0.97 * 50?)
-    # Simply: Rolling Mean of Values
-    # new_features['rtp_last_50'] = values.rolling(50).mean().shift(1).fillna(1.0) # DISABLED: Mean is misleading due to outliers
-    new_features['rtp_last_50'] = values.rolling(50).median().shift(1).fillna(1.0) # REPLACED: Median is robust
+    # C. Advanced Cooldown Index (RTP Tracking) - REMOVED per user request
+    # Only "Volatile Cooldown": Ratio of High wins (>=10x) in last 50 games
+    new_features['high_density_50'] = (values >= 10.0).rolling(50).mean().shift(1).fillna(0)
     
     # "Volatile Cooldown": Ratio of High wins (>=10x) in last 50 games
     new_features['high_density_50'] = (values >= 10.0).rolling(50).mean().shift(1).fillna(0)
