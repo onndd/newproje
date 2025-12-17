@@ -219,28 +219,28 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     new_features['medium_win_streak'] = df.index - last_not_med_idx
     new_features['medium_win_streak'] = new_features['medium_win_streak'].fillna(0.0)
 
-    # 8. Teknik İndikatörler (log_values üzerinden)
-    delta = log_values.diff()
-    gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
-    loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
-    rs = gain / loss
-    new_features['rsi_14'] = (100 - (100 / (1 + rs))).shift(1).fillna(50)
+    # 8. Teknik İndikatörler (DISABLED - Noise Reduction)
+    # delta = log_values.diff()
+    # gain = (delta.where(delta > 0, 0)).rolling(window=14).mean()
+    # loss = (-delta.where(delta < 0, 0)).rolling(window=14).mean()
+    # rs = gain / loss
+    # new_features['rsi_14'] = (100 - (100 / (1 + rs))).shift(1).fillna(50)
 
-    # Bollinger Bantları (20)
-    sma_20 = log_values.rolling(window=20).mean()
-    std_20 = log_values.rolling(window=20).std()
-    upper_band = sma_20 + (std_20 * 2)
-    lower_band = sma_20 - (std_20 * 2)
-    percent_b = (log_values - lower_band) / (upper_band - lower_band)
-    new_features['bb_percent_b'] = percent_b.shift(1).fillna(0.5)
-    new_features['bb_width'] = (upper_band - lower_band).shift(1).fillna(0)
+    # # Bollinger Bantları (20)
+    # sma_20 = log_values.rolling(window=20).mean()
+    # std_20 = log_values.rolling(window=20).std()
+    # upper_band = sma_20 + (std_20 * 2)
+    # lower_band = sma_20 - (std_20 * 2)
+    # percent_b = (log_values - lower_band) / (upper_band - lower_band)
+    # new_features['bb_percent_b'] = percent_b.shift(1).fillna(0.5)
+    # new_features['bb_width'] = (upper_band - lower_band).shift(1).fillna(0)
 
-    # MACD (12,26,9)
-    ema_12 = log_values.ewm(span=12, adjust=False).mean()
-    ema_26 = log_values.ewm(span=26, adjust=False).mean()
-    macd_line = ema_12 - ema_26
-    signal_line = macd_line.ewm(span=9, adjust=False).mean()
-    new_features['macd_hist'] = (macd_line - signal_line).shift(1).fillna(0)
+    # # MACD (12,26,9)
+    # ema_12 = log_values.ewm(span=12, adjust=False).mean()
+    # ema_26 = log_values.ewm(span=26, adjust=False).mean()
+    # macd_line = ema_12 - ema_26
+    # signal_line = macd_line.ewm(span=9, adjust=False).mean()
+    # new_features['macd_hist'] = (macd_line - signal_line).shift(1).fillna(0)
 
     # 9. Gelişmiş Frekans Özellikleri
     is_over_2 = (values >= 2.00).astype(int)
