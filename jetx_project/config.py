@@ -140,9 +140,9 @@ SCORING_LSTM = {
 SCORING_LIGHTGBM = {
     'TP': 90,
     'TN': 1,
-    'FP': 130, # Stricter penalty to curb LightGBM's tendency to over-predict
+    'FP': 155, # Increased penalty per user request
     'FN': 10,
-    'PRECISION': 65
+    'PRECISION': 75 # Increased bonus
 }
 
 # 4. MLP (Model E - The Neural Net)
@@ -179,7 +179,7 @@ SCORING_TRANSFORMER = {
 PROFIT_SCORING_WEIGHTS_P3 = {
     'TP': 400,  # HUGE Reward for catching a 3.00x
     'TN': 1,
-    'FP': 100,  # Reduced from 150 to 100 to encourage catching rare events
+    'FP': 135,  # Increased penalty from 100 to 135
     'FN': 50,   # Standard miss penalty
     'PRECISION': 100
 }
