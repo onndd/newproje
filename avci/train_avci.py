@@ -18,6 +18,7 @@ def get_scoring_params(target):
     if target == 20.0: return SCORING_20_0
     if target == 50.0: return SCORING_50_0
     if target == 100.0: return SCORING_100_0
+    if target == 1000.0: return SCORING_1000_0
     return SCORING_3_0 # Default
 
 import matplotlib.pyplot as plt

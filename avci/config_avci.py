@@ -18,9 +18,10 @@ SCORING_10_0 = {'TP': 2000, 'TN': 1, 'FP': 150, 'FN': 50, 'PRECISION': 200}
 SCORING_20_0 = {'TP': 5000, 'TN': 1, 'FP': 150, 'FN': 50, 'PRECISION': 300}
 SCORING_50_0 = {'TP': 15000, 'TN': 1, 'FP': 150, 'FN': 50, 'PRECISION': 500}
 SCORING_100_0 = {'TP': 40000, 'TN': 1, 'FP': 150, 'FN': 50, 'PRECISION': 1000}
+SCORING_1000_0 = {'TP': 200000, 'TN': 1, 'FP': 150, 'FN': 50, 'PRECISION': 5000}
 
 # Targets to train for
-TARGETS = [1.5, 2.0, 3.0, 5.0, 10.0, 20.0, 50.0, 100.0]
+TARGETS = [1.5, 2.0, 3.0, 5.0, 10.0, 20.0, 50.0, 100.0, 1000.0]
 
 DB_PATH = 'jetx.db'
 MODEL_DIR = 'models'

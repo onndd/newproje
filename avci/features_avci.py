@@ -55,7 +55,7 @@ def extract_features(df, windows=[10, 50, 100]):
 
     # 6. Games Since High X (Time Pressure)
     # Vectorized calculation for 'Games Since' specific multipliers
-    for threshold in [10.0, 20.0, 50.0]:
+    for threshold in [10.0, 20.0, 50.0, 100.0, 1000.0]:
         # Create a mask where value >= threshold
         hit_mask = (values >= threshold)
         # Cumulative sum of hits increases by 1 each time hit occurs
