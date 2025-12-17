@@ -277,8 +277,7 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     # Only "Volatile Cooldown": Ratio of High wins (>=10x) in last 50 games
     new_features['high_density_50'] = (values >= 10.0).rolling(50).mean().shift(1).fillna(0)
     
-    # "Volatile Cooldown": Ratio of High wins (>=10x) in last 50 games
-    new_features['high_density_50'] = (values >= 10.0).rolling(50).mean().shift(1).fillna(0)
+
 
     # Concatenate all new features at once (Optimized)
     df_new = pd.DataFrame(new_features, index=df.index)
