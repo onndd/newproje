@@ -221,6 +221,7 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     # --------------------------------
 
     # Final Training (Full Data - 85/15)
+    n_total = len(values)
     train_end = int(n_total * 0.85)
     raw_train = values[:train_end]
     raw_val = values[train_end:] # Note: We need context for val!
