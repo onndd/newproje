@@ -120,7 +120,7 @@ PROFIT_SCORING_WEIGHTS = {
 SCORING_CATBOOST = {
     'TP': 85,
     'TN': 1,
-    'FP': 140, # Moderate penalty to encourage taking calculated risks
+    'FP': 110, # Reduced from 140 to encourage taking more calculated risks
     'FN': 20,  # Slightly higher FOMO penalty to prevent over-silence
     'PRECISION': 65 # High precision bonus
 }
