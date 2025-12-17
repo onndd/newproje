@@ -109,7 +109,7 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     """
     # 1. Sequence Generation (From RAW data to preserve targets)
     from .model_lstm import create_rolling_window_sequences
-    X_all_raw, y_p15_all, y_p3_all, _ = create_rolling_window_sequences(values, seq_length)
+    X_all_raw, y_p15_all, y_p3_all = create_rolling_window_sequences(values, seq_length)
     
     # 2. Split
     n_samples = len(X_all_raw)
