@@ -81,8 +81,8 @@ def add_target_columns(df):
     df['target_p3'] = (vals >= 3.00).astype(int)
     
     # CRASH DETECTOR TARGET
-    # We define 'Crash' as anything less than our target (1.50)
-    # If it lands on 1.49, we lose. So that's a crash for us.
-    df['target_crash'] = (vals < 1.50).astype(int)
+    # We define 'Crash' as anything less than our SAFE ZONE (1.40x).
+    # This gives the model more examples of "Bad Situations" to learn from.
+    df['target_crash'] = (vals < 1.40).astype(int)
     
     return df

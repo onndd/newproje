@@ -246,8 +246,10 @@ def predict_meta_safe(model, scaler, meta_features, anomaly_model=None, current_
             raw_probs = predict_meta(model, scaler, meta_features)
             
             # Apply Veto
-            # mask: 1 if crash likely, 0 otherwise
-            veto_mask = (crash_preds > 0.85).astype(int)
+            # Crash Guard (Isolation Forest) returns pseudo-prob:
+            # > 0.50 = Potential Crash (Score < 0)
+            # > 0.85 = Strong Crash Signal (Score < -0.15 approx)
+            veto_mask = (crash_preds > 0.75).astype(int) # Lowered from 0.85 to be safer with IF
             if np.sum(veto_mask) > 0:
                 print(f"CRASH GUARD: Vetoed {np.sum(veto_mask)} bets due to high crash risk.")
                 

@@ -1,109 +1,121 @@
 
 import pandas as pd
 import numpy as np
-import lightgbm as lgb
-from sklearn.model_selection import StratifiedKFold
-from sklearn.metrics import precision_score, recall_score, accuracy_score, confusion_matrix
+from sklearn.ensemble import IsolationForest
+from sklearn.metrics import recall_score, precision_score
 import joblib
 import os
 from .config import MODEL_DIR
-import matplotlib.pyplot as plt
-import seaborn as sns
 
 def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
     """
-    Trains a LightGBM model specifically to detect 'Crash' events (Multiplier < 1.50).
-    This model acts as a Safety Guard.
+    Trains an Isolation Forest to detect 'Safe' vs 'Unsafe'.
     
-    Args:
-        X: Feature matrix
-        y_crash: Binary target (1 = Crash, 0 = Safe)
+    STRATEGY CHANGE:
+    Instead of supervised classification (which failed due to imbalance),
+    we use UNSUPERVISED ANOMALY DETECTION on the 'SAFE' data.
+    
+    1. We define 'Safe' as NOT Crash (value >= 1.30).
+    2. We train Isolation Forest ONLY on these 'Safe' examples.
+    3. It learns what 'Normal' looks like.
+    4. Anything it marks as -1 (Outlier) is a 'Potential Crash'.
     """
-    print(f"\n--- Training {model_name} (Safety Guard) ---")
+    print(f"\n--- Training {model_name} (Isolation Forest - Anomaly Mode) ---")
     
-    # 1. Stratified K-Fold
-    # We use CV to ensure robustness
-    skf = StratifiedKFold(n_splits=3, shuffle=False)
+    # 1. Select only SAFE examples for training
+    # y_crash = 1 means CRASH (< 1.30).
+    # y_crash = 0 means SAFE (>= 1.30).
+    mask_safe = (y_crash == 0)
+    X_safe = X[mask_safe]
     
-    params = {
-        'objective': 'binary',
-        'metric': 'auc', 
-        'verbosity': -1,
-        'boosting_type': 'gbdt',
-        'learning_rate': 0.05,
-        'num_leaves': 7, # Simple model to avoid noise
-        'min_child_samples': 50, # Robustness
-        'feature_fraction': 0.8,
-        'bagging_fraction': 0.8,
-        'bagging_freq': 5,
-        'scale_pos_weight': 3.0 # Stronger weight to wake it up
-    }
+    print(f"Training on {len(X_safe)} SAFE examples (ignoring {np.sum(y_crash)} crashes for training)...")
     
-    models = []
-    scores = []
+    # 2. Train Isolation Forest
+    # contamination: We expect roughly how many outliers in test?
+    # Actually, we don't set contamination if we want it to define its own boundary,
+    # but 'auto' is usually good. Or better: set low contamination (0.05) to be loose,
+    # or high to be strict.
+    # Let's use 'auto' to let it decide based on tree depth.
     
-    for fold, (train_idx, val_idx) in enumerate(skf.split(X, y_crash)):
-        X_train, X_val = X.iloc[train_idx], X.iloc[val_idx]
-        y_train, y_val = y_crash.iloc[train_idx], y_crash.iloc[val_idx]
-        
-        # Create Dataset
-        dtrain = lgb.Dataset(X_train, label=y_train)
-        dval = lgb.Dataset(X_val, label=y_val, reference=dtrain)
-        
-        # Train
-        model = lgb.train(
-            params,
-            dtrain,
-            num_boost_round=500,
-            valid_sets=[dtrain, dval],
-            callbacks=[lgb.early_stopping(stopping_rounds=30), lgb.log_evaluation(0)]
-        )
-        
-        # Eval
-        preds_proba = model.predict(X_val, num_iteration=model.best_iteration)
-        preds_bin = (preds_proba > 0.40).astype(int) # Aggressive threshold
-        
-        prec = precision_score(y_val, preds_bin, zero_division=0)
-        rec = recall_score(y_val, preds_bin, zero_division=0)
-        acc = accuracy_score(y_val, preds_bin)
-        
-        print(f"Fold {fold+1}: Accuracy: {acc:.4f}, Precision (Crash): {prec:.4f}, Recall (Crash): {rec:.4f}")
-        scores.append(prec)
-        models.append(model)
-        
-    avg_prec = np.mean(scores)
-    print(f"Average CV Precision: {avg_prec:.4f}")
-    
-    # Select best model (simplest approach: fit on all data or take last? For now, retrain on all)
-    print("Retraining on FULL dataset...")
-    dtrain_full = lgb.Dataset(X, label=y_crash)
-    final_model = lgb.train(
-        params,
-        dtrain_full,
-        num_boost_round=models[-1].best_iteration # Use iter from last fold
+    clf = IsolationForest(
+        n_estimators=300,
+        max_samples='auto',
+        contamination=0.10, # Assuming top 10% risky of "Safe" might be outliers too? 
+        # Actually standard IF assumes contamination in train set.
+        # But our train set is PURE safe (theoretically).
+        # So we should use contamination very low? 
+        # No, Isolation Forest is robust.
+        random_state=42,
+        n_jobs=-1
     )
+    
+    clf.fit(X_safe)
+    
+    # 3. Evaluation (On Full Set)
+    # Predict all
+    preds_if = clf.predict(X) 
+    # IF returns: 1 = Normal (Safe), -1 = Anomaly (Crash)
+    
+    # Map back to our logic:
+    # IF(1) -> Safe (0)
+    # IF(-1) -> Crash (1)
+    preds_mapped = np.where(preds_if == 1, 0, 1)
+    
+    rec = recall_score(y_crash, preds_mapped, zero_division=0)
+    prec = precision_score(y_crash, preds_mapped, zero_division=0)
+    
+    print(f"Isolation Forest Results on Training Set:")
+    print(f"Caught Crashes (Recall): {rec:.2%}")
+    print(f"False Alarms (Precision): {prec:.2%}")
+    print(f"Total Flags: {np.sum(preds_mapped)}")
     
     # Save
     if not os.path.exists(MODEL_DIR):
         os.makedirs(MODEL_DIR)
         
     save_path = os.path.join(MODEL_DIR, f'{model_name}.joblib')
-    joblib.dump(final_model, save_path)
-    print(f"Crash Guard saved to {save_path}")
+    joblib.dump(clf, save_path)
+    print(f"Crash Guard (IF) saved to {save_path}")
     
-    return final_model
+    return clf
 
 def load_crash_detector(model_name="Crash_Guard"):
-    """
-    Loads the trained Crash Detector model.
-    """
     path = os.path.join(MODEL_DIR, f'{model_name}.joblib')
     if not os.path.exists(path):
+        # Fallback to look for old name if needed, but better fail
         raise FileNotFoundError(f"Crash Guard model not found at {path}")
     return joblib.load(path)
 
 def predict_crash(model, X):
     """
-    Returns probability of CRASH.
+    Returns Crash Risk Score.
+    Isolation Forest returns 'decision_function' where lower = more anomalous.
+    We need to convert this to a pseudo-probability [0, 1].
+    
+    IF Output:
+    > 0  : Normal (Safe)
+    < 0  : Anomaly (Crash)
+    
+    We want:
+    1.0 = Definite Crash
+    0.0 = Definite Safe
     """
-    return model.predict(X)
+    raw_scores = model.decision_function(X)
+    
+    # Transform raw scores [-0.5, 0.5] approx
+    # Negative is crash.
+    # We invert sign so + is crash.
+    crash_scores = -raw_scores
+    
+    # Normalize via Sigmoid-ish or MinMax logic?
+    # Simple heuristic:
+    # If raw < 0 (crash), we want prob > 0.5
+    # If raw > 0 (safe), we want prob < 0.5
+    
+    # Standard probability conversion for IF scores doesn't exist perfectly.
+    # We use MinMax scaler approach roughly based on expected range [-0.2, 0.2]
+    
+    # Using a simple sigmoid on the inverted score
+    probs = 1 / (1 + np.exp(-10 * crash_scores)) # Multiplier 10 makes transition sharp around 0
+    
+    return probs

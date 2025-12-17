@@ -287,6 +287,34 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     new_features['medium_win_streak'] = df.index - last_not_med_idx
     new_features['medium_win_streak'] = new_features['medium_win_streak'].fillna(0.0)
 
+    # --- NEW: CRASH GUARD FEATURES (Negative Momentum) ---
+    # 1. Recent Failures (< 1.30)
+    # Counts how many of last 5 games were "Bad"
+    is_bad = (values < 1.30).astype(int)
+    new_features['recent_bad_games_5'] = is_bad.rolling(5).sum().shift(1).fillna(0)
+    
+    # 2. Sequential Bad Streak
+    # Similar to streaks above, but customized for < 1.30
+    mask_bad = (values < 1.30)
+    # Logic: If current is Bad, streak = prev + 1. If Safe, streak = 0.
+    # Vectorized:
+    # We find where SAFE happened (values >= 1.30)
+    mask_safe = (values >= 1.30)
+    last_safe_idx = pd.Series(np.where(mask_safe, df.index, np.nan), index=df.index).ffill().shift(1)
+    new_features['streak_under_1_30'] = df.index - last_safe_idx
+    new_features['streak_under_1_30'] = new_features['streak_under_1_30'].fillna(0)
+    
+    # 3. Volatility Squeeze (Already have volatility_squeeze_index, adding ultra-short term)
+    # Ratio of Vol(5) / Vol(20)
+    # If < 0.8, it means things are dangerously quiet right now compared to last 20 games.
+    vol_5 = values.rolling(5).std().shift(1)
+    # We re-use 'volatility_last_20' logic but need to ensure it's calculated here or re-do
+    vol_20 = values.rolling(20).std().shift(1)
+    new_features['vol_squeeze_5_20'] = (vol_5 / vol_20.replace(0, 1)).fillna(1.0)
+    
+    # 4. Rolling Mean 5 (Short Trend)
+    new_features['trend_mean_5'] = values.rolling(5).mean().shift(1).fillna(1.0)
+
     # C. Advanced Cooldown Index (RTP Tracking) - REMOVED per user request
     # Only "Volatile Cooldown": Ratio of High wins (>=10x) in last 50 games
     new_features['high_density_50'] = (values >= 10.0).rolling(50).mean().shift(1).fillna(0)
