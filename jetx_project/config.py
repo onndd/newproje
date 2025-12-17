@@ -190,7 +190,7 @@ SCORING_LIGHTGBM_P3 = {
 
 # 3. MLP P3.0
 SCORING_MLP_P3 = {
-    'TP': 400, 'TN': 1, 'FP': 135, 'FN': 50, 'PRECISION': 100
+    'TP': 400, 'TN': 1, 'FP': 155, 'FN': 40, 'PRECISION': 100
 }
 
 # 4. LSTM P3.0
