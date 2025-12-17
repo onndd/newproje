@@ -172,9 +172,9 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     
     print("Training Transformer (The Attention)...")
     model.fit(
-        X_train,
+        X_train_scaled,
         [y_p15_train, y_p3_train],
-        validation_data=(X_val, [y_p15_val, y_p3_val]),
+        validation_data=(X_val_scaled, [y_p15_val, y_p3_val]),
         epochs=epochs,
         batch_size=batch_size,
         callbacks=callbacks,
