@@ -1,10 +1,7 @@
 
 import pandas as pd
 import numpy as np
-try:
-    from config_avci import WINDOWS
-except ImportError:
-    from .config_avci import WINDOWS
+from config_avci import WINDOWS
 
 def extract_features(df, windows=WINDOWS):
     """
