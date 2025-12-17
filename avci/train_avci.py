@@ -28,7 +28,13 @@ def load_and_prep(limit=100000):
     print("Loading Data...")
     df = load_data(DB_PATH, limit=limit)
     print("Extracting Features...")
-    df = extract_features(df)
+    # Import WINDOWS locally if not available globally, but it is imported as scalar
+    try:
+        from config_avci import WINDOWS
+    except ImportError:
+        from .config_avci import WINDOWS
+        
+    df = extract_features(df, windows=WINDOWS)
     print("Labelling Targets...")
     df = add_targets(df, TARGETS)
     return df

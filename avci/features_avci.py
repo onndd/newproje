@@ -1,8 +1,12 @@
 
 import pandas as pd
 import numpy as np
+try:
+    from config_avci import WINDOWS
+except ImportError:
+    from .config_avci import WINDOWS
 
-def extract_features(df, windows=[10, 50, 100]):
+def extract_features(df, windows=WINDOWS):
     """
     Extracts purely numerical features for LightGBM.
     Focuses on: Moving Averages, Volatility, Streaks, Last N values.

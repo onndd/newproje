@@ -46,7 +46,7 @@ models = load_models()
 
 # Mock Data (In production, this would read live DB)
 df = load_data('jetx.db', limit=200) 
-df_feat = extract_features(df)
+df_feat = extract_features(df, windows=WINDOWS)
 current_probs = {}
 
 if models:
