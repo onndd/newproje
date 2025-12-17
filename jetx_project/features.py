@@ -214,6 +214,20 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     # Instead, we give the model the 'pattern_code_4' as a Categorical Feature.
     # CatBoost loves categorical features. We keep it as integer for now.
     
+    # 5. Volatility Breakout (Squeeze Detector) for P1.5 & P3.0
+    # Logic: Markets move from Silence -> Explosion.
+    # We compare Short-Term Volatility vs Long-Term Volatility.
+    # If Volatility is DEAD, a big move (Breakout) is coming.
+    # P1.5 should AVOID this (Choppy 1.30-1.40).
+    # P3.0 should WATCH this (Potential 10x boom after silence).
+    
+    vol_short = values.rolling(20).std().shift(1)
+    vol_long = values.rolling(100).std().shift(1)
+    
+    # Squeeze Index: < 0.5 means "Extreme Silence"
+    # We use fillna(1.0) to avoid false alarms at start
+    new_features['volatility_squeeze_index'] = (vol_short / vol_long.replace(0, 1)).fillna(1.0)
+    
     colors = (values >= 1.5).astype(int)
     colors_prev = colors.shift(1).fillna(0) # Default to 0 (Red) for start
     
