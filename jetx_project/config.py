@@ -176,10 +176,32 @@ SCORING_TRANSFORMER = {
 }
 
 # P3.0 Specific Weights (For High Multiplies)
-PROFIT_SCORING_WEIGHTS_P3 = {
-    'TP': 400,  # HUGE Reward for catching a 3.00x
-    'TN': 1,
-    'FP': 135,  # Increased penalty from 100 to 135
-    'FN': 50,   # Standard miss penalty
-    'PRECISION': 100
+# --- P3.0 Specific Weights (Decoupled per Model) ---
+
+# 1. CatBoost P3.0
+SCORING_CATBOOST_P3 = {
+    'TP': 400, 'TN': 1, 'FP': 135, 'FN': 50, 'PRECISION': 100
 }
+
+# 2. LightGBM P3.0
+SCORING_LIGHTGBM_P3 = {
+    'TP': 400, 'TN': 1, 'FP': 135, 'FN': 50, 'PRECISION': 100
+}
+
+# 3. MLP P3.0
+SCORING_MLP_P3 = {
+    'TP': 400, 'TN': 1, 'FP': 135, 'FN': 50, 'PRECISION': 100
+}
+
+# 4. LSTM P3.0
+SCORING_LSTM_P3 = {
+    'TP': 400, 'TN': 1, 'FP': 135, 'FN': 50, 'PRECISION': 100
+}
+
+# 5. Transformer P3.0
+SCORING_TRANSFORMER_P3 = {
+    'TP': 400, 'TN': 1, 'FP': 135, 'FN': 50, 'PRECISION': 100
+}
+
+# Global fallback (deprecated but kept for safety)
+PROFIT_SCORING_WEIGHTS_P3 = SCORING_CATBOOST_P3

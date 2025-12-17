@@ -75,9 +75,12 @@ def train_model_lstm(values, params_p15=None, params_p3=None, scoring_params_p15
     
     # Define Helper for Threshold Search
     from sklearn.metrics import confusion_matrix, classification_report
-    from .config import PROFIT_SCORING_WEIGHTS, SCORING_LSTM
+    from .config import PROFIT_SCORING_WEIGHTS, SCORING_LSTM, SCORING_LSTM_P3
     # Use centralized logic from optimization.py
     from .optimization import find_best_threshold
+    
+    if scoring_params_p3 is None:
+        scoring_params_p3 = SCORING_LSTM_P3
 
     # Default values for seq_length, epochs, batch_size if not in params
     seq_length = params_p15.get('seq_length', 200) if params_p15 else 200

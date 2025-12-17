@@ -204,9 +204,9 @@ def train_model_transformer(values, seq_length=200, epochs=20, batch_size=64):
     
     # P3.0 Report
     print("\n--- Transformer P3.0 Report ---")
-    # Note: Use PROFIT_SCORING_WEIGHTS_P3 if defined, else default
-    from .config import PROFIT_SCORING_WEIGHTS_P3
-    best_thresh_p3, best_score_p3 = find_best_threshold(y_p3_val, preds_p3_prob, "Transformer P3.0", scoring_params=PROFIT_SCORING_WEIGHTS_P3)
+    # Note: Use SCORING_TRANSFORMER_P3 for specific tuning
+    from .config import SCORING_TRANSFORMER_P3
+    best_thresh_p3, best_score_p3 = find_best_threshold(y_p3_val, preds_p3_prob, "Transformer P3.0", scoring_params=SCORING_TRANSFORMER_P3)
     
     preds_p3 = (preds_p3_prob > best_thresh_p3).astype(int)
     print(f"Confusion Matrix (P3.0 @ {best_thresh_p3:.2f}):\n{confusion_matrix(y_p3_val, preds_p3)}")

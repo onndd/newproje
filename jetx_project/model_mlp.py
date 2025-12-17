@@ -59,9 +59,12 @@ def train_model_mlp(X_train, y_p15_train, y_p3_train, params_p15=None, params_p3
     
     
     # Define Helper for Threshold Search
-    from .config import PROFIT_SCORING_WEIGHTS, SCORING_MLP
+    from .config import PROFIT_SCORING_WEIGHTS, SCORING_MLP, SCORING_MLP_P3
     # Use centralized logic from optimization.py
     from .optimization import find_best_threshold
+    
+    if scoring_params_p3 is None:
+        scoring_params_p3 = SCORING_MLP_P3
 
     # Compute Sample Weights for Class Balancing
     from sklearn.utils.class_weight import compute_sample_weight

@@ -65,9 +65,12 @@ def train_model_a(X_train, y_p15_train, y_p3_train, y_x_train, params_p15=None, 
     X_t, X_val = X_train.iloc[:split_idx], X_train.iloc[split_idx:]
     
     # Define Helper for Threshold Search
-    from .config import PROFIT_SCORING_WEIGHTS, SCORING_CATBOOST
+    from .config import PROFIT_SCORING_WEIGHTS, SCORING_CATBOOST, SCORING_CATBOOST_P3
     # Use centralized logic from optimization.py
     from .optimization import find_best_threshold
+    
+    if scoring_params_p3 is None:
+        scoring_params_p3 = SCORING_CATBOOST_P3
 
     # -----------------------------------------------------
     # 1. Model P1.5 (Classifier)
