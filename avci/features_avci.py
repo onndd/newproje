@@ -134,8 +134,25 @@ def extract_features(df, windows=[10, 50, 100]):
             return min([abs(val - f) for f in fib_nums])
         
         df['fib_dist_10x'] = df['games_since_10x'].apply(get_fib_dist) 
-        # Ideally Vectorized:
-        # col = df['games_since_10x'].values[:, None] # (N, 1)
-        # fibs = np.array(fib_nums)[None, :] # (1, F)
-        # dists = np.abs(col - fibs).min(axis=1)
-        # df['fib_dist_10x'] = dists
+
+    # 13. Max Pain (Umut Isini / Hope Injection)
+    # Detects when the market has been "brutal" for a long time (e.g., < 1.20x).
+    # Theory: House must release pressure (give a win) to keep players engaged after heavy losses.
+    is_pain = (values < 1.20).astype(int)
+    # Rolling count of pain in last 20 games
+    df['pain_density_20'] = is_pain.shift(1).rolling(20).sum().fillna(0)
+    # If density > 15 (75% of games were loss), we are in "Max Pain" zone.
+
+    # 14. Pattern Trap (Simetrik Yanilgi / Anti-Pattern)
+    # Detects highly predictable "Zig-Zag" behaviors (Up, Down, Up, Down) which lull players into false rhythm.
+    # We calculate how often the direction changes in the last 5 games.
+    diffs = values.shift(1).diff()
+    direction = np.sign(diffs)
+    # Check if direction flip-flopped compared to previous
+    is_zigzag = (direction != direction.shift(1)).astype(int)
+    # Sum of flips in last 5 games. 
+    # 5/5 means perfect Zig-Zag -> High probability that House will BREAK the pattern (Anti-Pattern).
+    df['zigzag_density_5'] = is_zigzag.rolling(5).sum().fillna(0)
+    
+    df = df.dropna()
+    return df
