@@ -148,10 +148,10 @@ SCORING_LIGHTGBM = {
 # 4. MLP (Model E - The Neural Net)
 # Often unstable on tabular data, needs strict guidance.
 SCORING_MLP = {
-    'TP': 120,
+    'TP': 110,
     'TN': 1,
-    'FP': 150, # High penalty to prevent noise fitting
-    'FN': 5,
+    'FP': 130, # Adjusted per user request
+    'FN': 20,
     'PRECISION': 50
 }
 
