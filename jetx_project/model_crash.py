@@ -31,11 +31,12 @@ def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
         'verbosity': -1,
         'boosting_type': 'gbdt',
         'learning_rate': 0.05,
-        'num_leaves': 31,
+        'num_leaves': 7, # Simple model to avoid noise
+        'min_child_samples': 50, # Robustness
         'feature_fraction': 0.8,
         'bagging_fraction': 0.8,
         'bagging_freq': 5,
-        'scale_pos_weight': 1.2 # Slight weight for safety, but data is now balanced (~50%)
+        'scale_pos_weight': 3.0 # Stronger weight to wake it up
     }
     
     models = []
@@ -60,7 +61,7 @@ def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
         
         # Eval
         preds_proba = model.predict(X_val, num_iteration=model.best_iteration)
-        preds_bin = (preds_proba > 0.50).astype(int) # Standard threshold (balanced data)
+        preds_bin = (preds_proba > 0.40).astype(int) # Aggressive threshold
         
         prec = precision_score(y_val, preds_bin, zero_division=0)
         rec = recall_score(y_val, preds_bin, zero_division=0)
