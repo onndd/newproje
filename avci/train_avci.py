@@ -36,9 +36,12 @@ def load_and_prep(limit=100000):
     df = add_targets(df, TARGETS)
     return df
 
-def train_target(df, target, epochs=20):
-    """Trains a model for a specific target"""
-    print(f"\n--- Training Target: {target}x ---")
+def optimize_target(df, target, epochs=20):
+    """
+    Runs Optuna optimization for a specific target and returns the study and best parameters.
+    Does NOT train the final model.
+    """
+    print(f"\n--- Optimizing Target: {target}x (Trials: {epochs}) ---")
     
     # Split
     features = [c for c in df.columns if 'target' not in c and 'result' not in c and 'value' not in c and 'id' not in c]
@@ -55,24 +58,40 @@ def train_target(df, target, epochs=20):
     print(f"Scoring Rules for {target}x: {scoring}")
     
     # Optuna
-    print(f"Optimizing for {target}x (Trials: {epochs})...")
     study = optuna.create_study(direction='maximize')
     study.optimize(lambda trial: objective_lgbm(trial, X_train, y_train, X_val, y_val, scoring, use_gpu=True), n_trials=epochs)
     
     print(f"Best Params: {study.best_params}")
     print(f"Best Profit Score: {study.best_value}")
     
-    # Final Train
-    best_params = study.best_params
-    best_params.update({'metric': 'binary_logloss', 'objective': 'binary', 'verbosity': -1, 'device': 'gpu'})
+    return study, study.best_params
+
+def train_target_final(df, target, best_params):
+    """
+    Trains the final model using the provided best parameters.
+    """
+    print(f"\n--- Final Training Target: {target}x ---")
     
-    model = train_lgbm(X_train, y_train, X_val, y_val, best_params)
+    # Split (Same as optimize)
+    features = [c for c in df.columns if 'target' not in c and 'result' not in c and 'value' not in c and 'id' not in c]
+    X = df[features]
+    split_idx = int(len(df) * 0.85)
+    X_train, X_val = X.iloc[:split_idx], X.iloc[split_idx:]
+    y_col = f'target_{str(target).replace(".","_")}'
+    y = df[y_col]
+    y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
+    
+    # Update params for final training
+    final_params = best_params.copy()
+    final_params.update({'metric': 'binary_logloss', 'objective': 'binary', 'verbosity': -1, 'device': 'gpu'})
+    
+    model = train_lgbm(X_train, y_train, X_val, y_val, final_params)
     
     os.makedirs('models', exist_ok=True)
     model.save_model(f'models/avci_lgbm_{str(target).replace(".","_")}.txt')
     print(f"Model saved.")
     
-    return model, X_val, y_val, features, study
+    return model, X_val, y_val
 
 def visualize_performance(model, X_val, y_val, target):
     """
