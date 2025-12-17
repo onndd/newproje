@@ -12,7 +12,7 @@ import seaborn as sns
 
 def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
     """
-    Trains a LightGBM model specifically to detect 'Crash' events (Multiplier < 1.20).
+    Trains a LightGBM model specifically to detect 'Crash' events (Multiplier < 1.50).
     This model acts as a Safety Guard.
     
     Args:
@@ -27,8 +27,7 @@ def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
     
     params = {
         'objective': 'binary',
-        'objective': 'binary',
-        'metric': 'auc', # Changed to AUC to better monitor separation
+        'metric': 'auc', 
         'verbosity': -1,
         'boosting_type': 'gbdt',
         'learning_rate': 0.05,
@@ -36,8 +35,7 @@ def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
         'feature_fraction': 0.8,
         'bagging_fraction': 0.8,
         'bagging_freq': 5,
-        # 'is_unbalance': True, # Replaced with manual heavy weighting
-        'scale_pos_weight': 5.0 # FORCE the model to pay 5x attention to Crashes
+        'scale_pos_weight': 1.2 # Slight weight for safety, but data is now balanced (~50%)
     }
     
     models = []
@@ -62,7 +60,7 @@ def train_crash_detector(X, y_crash, model_name="Crash_Guard"):
         
         # Eval
         preds_proba = model.predict(X_val, num_iteration=model.best_iteration)
-        preds_bin = (preds_proba > 0.30).astype(int) # Lowered threshold to wake up the guard
+        preds_bin = (preds_proba > 0.50).astype(int) # Standard threshold (balanced data)
         
         prec = precision_score(y_val, preds_bin, zero_division=0)
         rec = recall_score(y_val, preds_bin, zero_division=0)
