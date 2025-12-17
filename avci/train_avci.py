@@ -55,6 +55,7 @@ def train_target(df, target, epochs=20):
     y_train, y_val = y.iloc[:split_idx], y.iloc[split_idx:]
     
     scoring = get_scoring_params(target)
+    print(f"Scoring Rules for {target}x: {scoring}")
     
     # Optuna
     print(f"Optimizing for {target}x (Trials: {epochs})...")
@@ -62,6 +63,7 @@ def train_target(df, target, epochs=20):
     study.optimize(lambda trial: objective_lgbm(trial, X_train, y_train, X_val, y_val, scoring), n_trials=epochs)
     
     print(f"Best Params: {study.best_params}")
+    print(f"Best Profit Score: {study.best_value}")
     
     # Final Train
     best_params = study.best_params
@@ -73,7 +75,7 @@ def train_target(df, target, epochs=20):
     model.save_model(f'models/avci_lgbm_{str(target).replace(".","_")}.txt')
     print(f"Model saved.")
     
-    return model, X_val, y_val, features
+    return model, X_val, y_val, features, study
 
 def visualize_performance(model, X_val, y_val, target):
     """
