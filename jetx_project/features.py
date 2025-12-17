@@ -288,7 +288,8 @@ def extract_features_batch(df: pd.DataFrame) -> pd.DataFrame:
     # the system might enter "Collection Mode".
     # Payout Ratio approximation: Sum(Values) / 50 vs Theoretical Expected (e.g., 0.97 * 50?)
     # Simply: Rolling Mean of Values
-    new_features['rtp_last_50'] = values.rolling(50).mean().shift(1).fillna(1.0)
+    # new_features['rtp_last_50'] = values.rolling(50).mean().shift(1).fillna(1.0) # DISABLED: Mean is misleading due to outliers
+    new_features['rtp_last_50'] = values.rolling(50).median().shift(1).fillna(1.0) # REPLACED: Median is robust
     
     # "Volatile Cooldown": Ratio of High wins (>=10x) in last 50 games
     new_features['high_density_50'] = (values >= 10.0).rolling(50).mean().shift(1).fillna(0)
