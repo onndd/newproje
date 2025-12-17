@@ -95,6 +95,8 @@ DB_PATH = 'jetx.db'
 # DB_LIMIT = 2000 # Eski limit (Veri körlüğüne sebep oluyordu)
 DB_LIMIT = 50000 # Yeni limit (Yeterli veri için)
 
+MODEL_DIR = 'models'
+
 # -------------------------------------------------------------------
 # PROFIT SCORING WEIGHTS (The "Sniper Logic" Configuration)
 # -------------------------------------------------------------------
